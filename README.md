@@ -7,10 +7,6 @@ Here is a premium, high-energy, and ultra-clean `README.md` template tailored ex
 
 > **Real-time football intelligence platform powered by computer vision, deterministic analytics, and Fireworks AI.**
 
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Python](https://img.shields.io/badge/python-3.10%2B-black.svg?logo=python&logoColor=green)
-![Fireworks AI](https://img.shields.io/badge/AI-Fireworks--AI-00FF00.svg)
-![Tests](https://img.shields.io/badge/tests-387%2B%20passing-brightgreen.svg)
 
 ---
 
