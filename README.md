@@ -2,163 +2,286 @@
 
 # ⚽ FootballIQ
 
-### AI-Powered Football Intelligence Platform
+### AI-Powered Football Performance Analysis Platform
 
-Transform football match footage into tactical intelligence, player analytics, and AI-powered coaching insights.
+Transform football videos into actionable performance insights using AI-powered computer vision, pose estimation, and intelligent analytics.
 
-<img src="assets/footballiq-banner.png" alt="FootballIQ Banner" width="100%">
+<p align="center">
+  <img src="assets/footballiq-banner.png" alt="FootballIQ Banner" width="100%">
+</p>
+
+<p align="center">
+
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-06B6D4?style=for-the-badge&logo=tailwindcss)
+![License](https://img.shields.io/badge/License-MIT-success?style=for-the-badge)
+
+</p>
 
 </div>
 
 ---
 
-> **Real-time football intelligence platform powered by computer vision, deterministic analytics, and Fireworks AI.**
+# 📖 Overview
+
+FootballIQ is an AI-powered football performance analysis platform designed to help players and coaches gain meaningful insights from football videos.
+
+By combining computer vision, pose estimation, and intelligent analytics, FootballIQ evaluates player movement, performance metrics, and technical execution to generate detailed visual reports and AI-powered recommendations.
+
+Whether you're analyzing a training session or reviewing gameplay, FootballIQ makes performance analysis faster, smarter, and more accessible.
 
 ---
 
-## 🌌 Overview
+# ✨ Features
 
-**FootballIQ** bridges the gap between raw physical movement on the pitch and high-level strategic reasoning. By ingesting video feeds, tracking positional coordinates, and running deterministic sports-science analytics, the platform generates a live game snapshot. This data is orchestrated and dispatched directly to elite open-weight LLMs hosted via Fireworks AI to deliver instant, actionable tactical insights straight to the technical bench.
+## 🎥 Video Upload
 
----
+Upload football training or gameplay videos through a simple drag-and-drop interface.
 
-## ⚡ Key Features
-
-- **🤖 Multi-Agent Tactical Dispatcher** — Automatically routes match contexts into dedicated analytical streams (`CoachChat`, `Strategy`, `Opponent`, `Reports`).
-- **💬 CoachChat Service** — A live, conversational interface allowing staff to query real-time match telemetry using natural language.
-- **🎯 Automated Alert Engine** — Constantly monitors data thresholds to instantly push notifications regarding tactical shifts, positional errors, or player fatigue.
-- **🛠️ Robust JSON Repair Pipeline** — Built-in fault tolerance ensures that unstructured LLM outputs are repaired on-the-fly to maintain UI uptime.
-- **📊 Cost & Performance Audit** — Built-in simulation scripts to evaluate latency, token efficiency, and operational costs per match.
+- Video Preview
+- Easy Upload
+- Processing Progress
+- Analysis Pipeline
 
 ---
 
-## 🏗️ Architecture
+## 🤖 AI Performance Analysis
 
+Automatically analyze player movement and performance.
+
+- Pose Detection
+- Movement Tracking
+- Frame Analysis
+- Performance Evaluation
+
+---
+
+## 📊 Analytics Dashboard
+
+Visualize performance through an interactive dashboard.
+
+- Performance Metrics
+- Activity Charts
+- Analysis Summary
+- Session Overview
+
+---
+
+## 📈 Performance Metrics
+
+Generate meaningful player statistics including:
+
+- Movement Efficiency
+- Speed Analysis
+- Accuracy Metrics
+- Performance Score
+- Activity Summary
+
+---
+
+## 🧠 AI Insights
+
+Receive intelligent feedback generated from player performance.
+
+- Performance Summary
+- Strength Identification
+- Areas for Improvement
+- Personalized Recommendations
+
+---
+
+## 📂 Analysis History
+
+Keep track of previous analyses.
+
+- Recent Sessions
+- Saved Reports
+- Performance Comparison
+
+---
+
+## 🎨 Modern User Interface
+
+A clean and responsive interface built for an intuitive user experience.
+
+- Dark Theme
+- Responsive Layout
+- Interactive Dashboard
+- Modern Design
+
+---
+
+# ⚙️ Workflow
+
+```text
+Football Video
+│
+▼
+Video Upload
+│
+▼
+Pose Estimation
+│
+▼
+Movement Analysis
+│
+▼
+Performance Metrics
+│
+▼
+AI Insights
+│
+▼
+Interactive Dashboard
 ```
-Vision ──> Tracking ──> Events ──> Analytics ──> Player Intelligence ──> Match Intelligence
-                                                                                │
-                                                                                ▼
-                                                                      Live Match Session
-                                                                                │
-                                                                                ▼
-                                                                     PipelineContext Snapshot
-                                                                                │
-                                                                                ▼
-                                                                       Live AI Dispatcher
-                                                                                │
-                                                              ┌─────────────────┴─────────────────┐
-                                                              ▼                                   ▼
-                                                          CoachChat                        Tactical Alerts
-                                                              │                                   │
-                                                              └─────────────────┬─────────────────┘
-                                                                                ▼
-                                                                          AIOrchestrator
-                                                                                │
-                                                                                ▼
-                                                                        FireworksProvider
-                                                                                │
-                                                                                ▼
-                                                                         Fireworks AI API
+
+---
+
+# 🛠 Technology Stack
+
+| Layer | Technologies |
+|--------|--------------|
+| Frontend | React, TypeScript, Tailwind CSS, Vite |
+| Backend | FastAPI, Python |
+| AI | Computer Vision, Pose Estimation |
+| Database | SQLite |
+| Charts | Chart.js |
+| Deployment | Docker |
+
+---
+
+# 📂 Project Structure
+
+```text
+FootballIQ/
+│
+├── frontend/
+├── backend/
+├── assets/
+├── uploads/
+├── reports/
+├── models/
+├── requirements.txt
+├── docker-compose.yml
+└── README.md
 ```
 
 ---
 
-## ⚙️ Quick Start
+# 🚀 Getting Started
 
-### 1. Clone the Repository
+## Clone Repository
 
 ```bash
-git clone https://github.com/your-username/footballiq.git
-cd footballiq
-cp .env.example .env
+git clone https://github.com/4prudhviN/FootballIQ-source-code.git
 ```
 
-### 2. Install Dependencies
+```bash
+cd FootballIQ-source-code
+```
+
+---
+
+## Install Backend Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure Your Keys
-
-Populate your `.env` file with your Fireworks credentials:
-
-```env
-FIREWORKS_API_KEY=your_secret_fireworks_api_key_here
-FIREWORKS_MODEL=accounts/fireworks/models/gpt-oss-120b
-```
-
 ---
 
-## 🧠 Supported Intelligence Models
-
-Hot-swap models by updating `.env` — no code changes needed.
-
-| Model Reference | Primary Target Domain | Strength |
-|---|---|---|
-| `accounts/fireworks/models/gpt-oss-120b` | General Coaching & Complex Tactics | High contextual comprehension |
-| `accounts/fireworks/models/deepseek-r1` | Reasoning-heavy Tasks & Math | Advanced logic & chain-of-thought |
-
-> 💡 Override parameters directly within `config/ai.yaml` for fine-grained control.
-
----
-
-## 🧪 Testing Suite
-
-387+ automated checks to guarantee precision during live matches.
+## Install Frontend Dependencies
 
 ```bash
-# Run the entire test suite
-python -m pytest tests/ -q
-
-# Test live integration endpoints
-python -m pytest tests/test_live_ai.py -v
-
-# Run tactical alert threshold engine tests
-python -m pytest tests/test_tactical_alerts.py -v
+npm install
 ```
 
 ---
 
-## 📈 Production Verification & Cost Estimation
+## Start Backend
 
 ```bash
-# Verify end-to-end API connectivity
-python scripts/test_fireworks.py
-
-# Simulate seasonal token costs
-python scripts/cost_estimator.py --matches 10 --questions 20 --strategy 5 --reports 3
+uvicorn app.main:app --reload
 ```
 
 ---
 
-## 📁 Project Structure
+## Start Frontend
 
-```
-footballiq/
-├── assets/              # Banner and static media
-├── config/              # AI provider & live threshold configurations
-├── ai/                  # Core AIOrchestrator, router, and parsing engines
-├── live/                # Match sessions, dispatchers, and alert rules
-├── schema/              # Data schemas for PipelineContext definitions
-├── scripts/             # Cost estimation and live testing utilities
-└── tests/               # 387+ automated test validation scripts
+```bash
+npm run dev
 ```
 
 ---
 
-## 🛡️ Troubleshooting
+Open your browser:
 
-- **`FIREWORKS_API_KEY is not set`** — Ensure `.env` exists in the root directory and `python-dotenv` is initializing correctly.
-- **`Confidence = 0.0`** — The model returned coordinates or player IDs that failed grounding validation. Ensure your mock telemetry is accurately populated.
-- **`HTTP 429 Too Many Requests`** — You've hit the Fireworks concurrency limit. Scale down request intervals or increase retry parameters in `config/ai.yaml`.
+```
+http://localhost:5173
+```
+
+---
+
+# 📸 Screenshots
+
+> Add screenshots of the following pages:
+
+- Login
+- Dashboard
+- Video Upload
+- Performance Analytics
+- AI Insights
+- Analysis History
+
+---
+
+# 🎯 Use Cases
+
+FootballIQ is designed for:
+
+- Football Players
+- Coaches
+- Academies
+- Performance Analysts
+- Sports Researchers
+
+---
+
+# 🚧 Future Enhancements
+
+- Live Video Analysis
+- Multi-Player Tracking
+- Heatmap Generation
+- AI Coaching Assistant
+- Cloud Storage
+- Mobile Application
+- Advanced Performance Reports
+
+---
+
+# 🤝 Contributing
+
+Contributions are welcome!
+
+Feel free to fork the repository, open issues, or submit pull requests to improve FootballIQ.
+
+---
+
+# 📄 License
+
+This project is licensed under the MIT License.
 
 ---
 
 <div align="center">
 
-⚡ *Powered by FootballIQ Intelligence Engines*
+## ⚽ FootballIQ
 
-🛡️ Built for Coaches &nbsp;|&nbsp; 👥 Trusted by Analysts &nbsp;|&nbsp; ⚡ Powered by AI &nbsp;|&nbsp; 🎯 Designed for Performance
+### Analyze Better. Train Smarter. Perform Stronger.
+
+Built with ❤️ using AI and Computer Vision.
 
 </div>
