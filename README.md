@@ -25,6 +25,12 @@ Transform football videos into actionable performance insights using AI-powered 
 
 ---
 
+# 🎬 Demo
+
+▶️ [Watch Demo Video](https://drive.google.com/file/d/1t4RFPNxORPaR16YV-qO86i6RA3KwtwA-/view?usp=sharing)
+
+---
+
 # 📖 Overview
 
 FootballIQ is an AI-powered football performance analysis platform designed to help players and coaches gain meaningful insights from football videos.
