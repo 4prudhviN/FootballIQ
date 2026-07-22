@@ -119,3 +119,113 @@ export interface AnalysisResult {
   /** Detected football actions from activity_detector — drives dashboard cards */
   detectedActions?: FootballAction[];
 }
+
+/* ── Skill Level ─────────────────────────────────────── */
+export type SkillLevel = "Beginner" | "Intermediate" | "Advanced";
+
+/* ── Per-action metric snapshot ──────────────────────── */
+/**
+ * A flat key→value map of display-ready metric values for a single
+ * detected football action (e.g. passing, shooting).
+ * Values are strings so the UI can display them without conversion.
+ */
+export type ActionMetrics = Record<string, string>;
+
+/* ── AI Feedback ─────────────────────────────────────── */
+export interface AIFeedback {
+  /** One-sentence plain-English summary of the session */
+  summary: string;
+  /** Things the player did well */
+  strengths: string[];
+  /** Weak areas identified by the feedback engine */
+  weaknesses: string[];
+  /** Targeted coaching tips from feedback_engine.py */
+  coachingTips: string[];
+  /** Motivational closing message (level-aware) */
+  motivationalTip: string;
+}
+
+/* ── Training Drill ──────────────────────────────────── */
+export interface TrainingDrill {
+  /** Short drill name, e.g. "Wall Lean Drill" */
+  name: string;
+  /** Target metric this drill addresses, e.g. "torso_lean" */
+  targetMetric: string;
+  /** Step-by-step instructions */
+  instructions: string;
+  /** Estimated time to complete one set */
+  duration: string;
+  /** Difficulty relative to player level */
+  difficulty: SkillLevel;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Master Session Object
+   ═══════════════════════════════════════════════════════
+   Everything in the app revolves around this interface.
+   Produced by the analysis pipeline and consumed by every
+   component — DashboardTab, AnalysisTab, UploadTab, etc.
+   ─────────────────────────────────────────────────────── */
+export interface FootballSession {
+  /** Unique session identifier */
+  id: string;
+
+  /** Original video filename */
+  fileName: string;
+
+  /** When the session was created */
+  date: Date;
+
+  /** Pipeline processing status */
+  status: "completed" | "processing" | "failed";
+
+  /** URL of the annotated output video */
+  videoUrl?: string;
+
+  /**
+   * Activities detected by activity_detector.py.
+   * Drives which action cards are rendered in the dashboard.
+   * Only non-empty when status === "completed".
+   */
+  detectedActivities: FootballAction[];
+
+  /**
+   * Skill level produced by skill_classifier.py.
+   * Determines drill difficulty and motivational messaging.
+   */
+  playerLevel: SkillLevel;
+
+  /**
+   * Per-action metric snapshots keyed by FootballAction.
+   * e.g. metrics["passing"] = { "Ball Control": "92%", ... }
+   * Also includes core biomechanical scalars (torsoLean, etc.)
+   */
+  metrics: {
+    /** Per-action display metrics from the analyzer pipeline */
+    byAction: Partial<Record<FootballAction, ActionMetrics>>;
+    /** Core biomechanical scalars from analyze_movement.py */
+    torsoLean: number;
+    kneeStability: number;
+    gaitSymmetry: number;
+    /** Raw warning strings from the video analysis */
+    warnings: string[];
+  };
+
+  /**
+   * AI-generated coaching feedback from feedback_engine.py.
+   * Includes summary, strengths, weaknesses, tips, and motivation.
+   */
+  aiFeedback: AIFeedback;
+
+  /**
+   * Ordered list of recommended training drills.
+   * First item = highest priority (shown in the Correction Hub).
+   */
+  drills: TrainingDrill[];
+
+  /** Optional expanded pillar metrics (legacy / future backend fields) */
+  technical?: TechnicalMetrics;
+  setPieces?: SetPieceMetrics;
+  gymPlyo?: GymPlyoMetrics;
+  stamina?: StaminaMetrics;
+}
