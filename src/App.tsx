@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
-import type { NavTab, AnalysisResult } from "./types";
+import type { NavTab, AnalysisResult, FootballAction } from "./types";
 import Sidebar from "./components/Sidebar";
 import DashboardTab from "./components/DashboardTab";
 import UploadTab from "./components/UploadTab";
@@ -26,6 +26,15 @@ export default function App() {
   /** Called by UploadTab when a video finishes analysis */
   const handleAnalysisComplete = useCallback(
     (videoUrl: string, warnings: string[], fileName: string) => {
+      // Derive detected actions from warning flags — in production this
+      // would come from activity_detector.py via the backend response.
+      const detectedActions: FootballAction[] = [];
+      if (warnings.includes("POOR POSTURE / LEANING BACK")) detectedActions.push("shooting");
+      if (warnings.includes("KNEE ALIGNMENT RISK")) detectedActions.push("dribbling");
+      if (warnings.includes("ASYMMETRIC GAIT DETECTED")) detectedActions.push("movement");
+      // Always include at least one action so the dashboard is never empty.
+      if (detectedActions.length === 0) detectedActions.push("passing");
+
       const result: AnalysisResult = {
         id: String(nextId++),
         fileName,
@@ -38,6 +47,7 @@ export default function App() {
           kneeStability: warnings.includes("KNEE ALIGNMENT RISK") ? 72 : 87,
           gaitSymmetry: warnings.includes("ASYMMETRIC GAIT DETECTED") ? 78 : 92,
         },
+        detectedActions,
       };
       setAnalysisResults((prev) => [result, ...prev]);
       setActiveTab("analysis");

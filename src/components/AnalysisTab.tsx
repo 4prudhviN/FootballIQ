@@ -11,9 +11,13 @@ import {
   Dumbbell,
   Heart,
   Footprints,
+  CircleDot,
+  Shield,
+  Zap,
+  PersonStanding,
 } from "lucide-react";
 
-import type { AnalysisResult, PillarTab } from "../types";
+import type { AnalysisResult, PillarTab, FootballAction } from "../types";
 import PillarTechnical from "./PillarTechnical";
 import PillarSetPiece from "./PillarSetPiece";
 import PillarGymPlyo from "./PillarGymPlyo";
@@ -24,8 +28,100 @@ interface AnalysisTabProps {
   onUploadMore: () => void;
 }
 
-/* ── Sub-navigation ──────────────────────────────────── */
-const PILLAR_ITEMS: {
+/* ── Action → tab config map ─────────────────────────── */
+interface ActionTabConfig {
+  id: FootballAction;
+  label: string;
+  shortLabel: string;
+  icon: React.ReactNode;
+  /** Sub-metrics shown under this action card */
+  subMetrics: string[];
+}
+
+const ACTION_TAB_MAP: Record<FootballAction, ActionTabConfig> = {
+  passing: {
+    id: "passing",
+    label: "Passing",
+    shortLabel: "Passing",
+    icon: <Crosshair size={16} />,
+    subMetrics: ["Ball Control", "First Touch", "Pass Accuracy", "Weight of Pass"],
+  },
+  dribbling: {
+    id: "dribbling",
+    label: "Dribbling",
+    shortLabel: "Dribble",
+    icon: <CircleDot size={16} />,
+    subMetrics: ["Close Control", "Change of Direction", "Touch Tightness", "Speed with Ball"],
+  },
+  shooting: {
+    id: "shooting",
+    label: "Shooting",
+    shortLabel: "Shoot",
+    icon: <Zap size={16} />,
+    subMetrics: ["Shot Velocity", "Launch Angle", "Target Accuracy", "Torso Alignment"],
+  },
+  goalkeeping: {
+    id: "goalkeeping",
+    label: "Goalkeeping",
+    shortLabel: "GK",
+    icon: <Shield size={16} />,
+    subMetrics: ["Reaction Time", "Diving Range", "Distribution", "Positioning"],
+  },
+  defending: {
+    id: "defending",
+    label: "Defending",
+    shortLabel: "Defend",
+    icon: <Shield size={16} />,
+    subMetrics: ["Tackle Timing", "Positioning", "Interception", "Aerial Duels"],
+  },
+  movement: {
+    id: "movement",
+    label: "Movement",
+    shortLabel: "Movement",
+    icon: <PersonStanding size={16} />,
+    subMetrics: ["Gait Symmetry", "Stride Length", "Sprint Speed", "Agility"],
+  },
+};
+
+/* ── Action metric card ──────────────────────────────── */
+function ActionMetricCard({ config, metrics }: {
+  config: ActionTabConfig;
+  metrics: Record<string, string>;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.25 }}
+    >
+      <div className="mb-4 flex items-center gap-2">
+        <span className="text-primary">{config.icon}</span>
+        <h3 className="font-heading text-sm font-semibold text-foreground">
+          {config.label}
+        </h3>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {config.subMetrics.map((name) => (
+          <div
+            key={name}
+            className="rounded-xl border border-border bg-background/60 p-4"
+          >
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted">
+              {name}
+            </p>
+            <p className="mt-1.5 text-xl font-bold text-foreground">
+              {metrics[name] ?? "—"}
+            </p>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+/* ── Fallback pillar items (used when no actions detected) ── */
+const FALLBACK_PILLAR_ITEMS: {
   id: PillarTab;
   label: string;
   shortLabel: string;
@@ -426,7 +522,59 @@ export default function AnalysisTab({ results, onUploadMore }: AnalysisTabProps)
   const fileName = latest?.fileName ?? null;
   const warnings = latest?.warnings ?? [];
   const hasWarnings = warnings.length > 0;
+
+  // Detected actions drive the sub-navigation — only show cards that exist.
+  const detectedActions: FootballAction[] = latest?.detectedActions ?? [];
+  const hasDetectedActions = detectedActions.length > 0;
+
+  const [activeAction, setActiveAction] = useState<FootballAction | null>(null);
   const [activePillar, setActivePillar] = useState<PillarTab>("technical");
+
+  // Resolve which action tab is active — fall back to first detected.
+  const activeActionResolved: FootballAction | null =
+    activeAction && detectedActions.includes(activeAction)
+      ? activeAction
+      : detectedActions[0] ?? null;
+
+  // Mock metric values per action — in production these come from the backend.
+  const ACTION_MOCK_METRICS: Record<FootballAction, Record<string, string>> = {
+    passing: {
+      "Ball Control": "92%",
+      "First Touch": "0.36 m/s²",
+      "Pass Accuracy": "87%",
+      "Weight of Pass": "Medium",
+    },
+    dribbling: {
+      "Close Control": "88%",
+      "Change of Direction": "5.8 m/s",
+      "Touch Tightness": "±2.4 cm",
+      "Speed with Ball": "24 km/h",
+    },
+    shooting: {
+      "Shot Velocity": "88 km/h",
+      "Launch Angle": "14°",
+      "Target Accuracy": "81%",
+      "Torso Alignment": "12°",
+    },
+    goalkeeping: {
+      "Reaction Time": "0.28s",
+      "Diving Range": "2.4m",
+      "Distribution": "74%",
+      "Positioning": "Good",
+    },
+    defending: {
+      "Tackle Timing": "Good",
+      "Positioning": "88%",
+      "Interception": "3",
+      "Aerial Duels": "67%",
+    },
+    movement: {
+      "Gait Symmetry": "92%",
+      "Stride Length": "1.24m",
+      "Sprint Speed": "31.2 km/h",
+      "Agility": "4.2s",
+    },
+  };
 
   const [overlayOptions, setOverlayOptions] = useState<SkeletonOverlayOptions>({
     joints: true,
@@ -570,64 +718,127 @@ export default function AnalysisTab({ results, onUploadMore }: AnalysisTabProps)
         </div>
       </div>
 
-      {/* ── Omni-Metric Sub-navigation ── */}
-      <div className="flex overflow-x-auto gap-1 rounded-2xl border border-border bg-surface p-1.5 scrollbar-none">
-        {PILLAR_ITEMS.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setActivePillar(p.id)}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer ${
-              activePillar === p.id
-                ? "bg-primary/15 text-primary shadow-sm"
-                : "text-muted hover:text-foreground hover:bg-surface-hover"
-            }`}
-          >
-            <span className={activePillar === p.id ? "text-primary" : "text-muted"}>{p.icon}</span>
-            <span className="hidden sm:inline">{p.label}</span>
-            <span className="sm:hidden">{p.shortLabel}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* ── Pillar content + Heatmap ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 rounded-2xl border border-border bg-surface p-5 sm:p-6">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activePillar}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-            >
-              {activePillar === "technical" && <PillarTechnical metrics={technical} />}
-              {activePillar === "setpiece" && <PillarSetPiece metrics={setPieces} />}
-              {activePillar === "gymplyo" && <PillarGymPlyo metrics={gymPlyo} />}
-              {activePillar === "stamina" && <PillarStamina metrics={stamina} />}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* ── Heatmap ── */}
-        <div className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
-          <div className="flex items-center gap-2 mb-3">
-            <Target size={16} className="text-primary" />
-            <h3 className="font-heading text-sm font-semibold text-foreground">Impact Distribution</h3>
+      {/* ── Detected Actions Sub-navigation ── */}
+      {hasDetectedActions ? (
+        <>
+          <div className="flex overflow-x-auto gap-1 rounded-2xl border border-border bg-surface p-1.5 scrollbar-none">
+            {detectedActions.map((action) => {
+              const cfg = ACTION_TAB_MAP[action];
+              const isActive = action === activeActionResolved;
+              return (
+                <button
+                  key={action}
+                  onClick={() => setActiveAction(action)}
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer ${
+                    isActive
+                      ? "bg-primary/15 text-primary shadow-sm"
+                      : "text-muted hover:text-foreground hover:bg-surface-hover"
+                  }`}
+                >
+                  <span className={isActive ? "text-primary" : "text-muted"}>{cfg.icon}</span>
+                  {cfg.label}
+                </button>
+              );
+            })}
           </div>
-          <p className="mb-3 text-[11px] text-muted">
-            Kick &amp; throw-in landing positions — goal zone matrix
-          </p>
-          <TargetHeatmap />
-          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3 text-[11px] text-muted">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-primary/70" /> On-target
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-full bg-accent/60" /> Off-target
-            </span>
+
+          {/* ── Action cards + Heatmap ── */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2 rounded-2xl border border-border bg-surface p-5 sm:p-6">
+              <AnimatePresence mode="wait">
+                {activeActionResolved && (
+                  <ActionMetricCard
+                    key={activeActionResolved}
+                    config={ACTION_TAB_MAP[activeActionResolved]}
+                    metrics={ACTION_MOCK_METRICS[activeActionResolved]}
+                  />
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* ── Heatmap ── */}
+            <div className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Target size={16} className="text-primary" />
+                <h3 className="font-heading text-sm font-semibold text-foreground">Impact Distribution</h3>
+              </div>
+              <p className="mb-3 text-[11px] text-muted">
+                Kick &amp; throw-in landing positions — goal zone matrix
+              </p>
+              <TargetHeatmap />
+              <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3 text-[11px] text-muted">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-primary/70" /> On-target
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-accent/60" /> Off-target
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      ) : (
+        <>
+          {/* ── Fallback: legacy pillar nav when no actions detected ── */}
+          <div className="flex overflow-x-auto gap-1 rounded-2xl border border-border bg-surface p-1.5 scrollbar-none">
+            {FALLBACK_PILLAR_ITEMS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setActivePillar(p.id)}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer ${
+                  activePillar === p.id
+                    ? "bg-primary/15 text-primary shadow-sm"
+                    : "text-muted hover:text-foreground hover:bg-surface-hover"
+                }`}
+              >
+                <span className={activePillar === p.id ? "text-primary" : "text-muted"}>{p.icon}</span>
+                <span className="hidden sm:inline">{p.label}</span>
+                <span className="sm:hidden">{p.shortLabel}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* ── Pillar content + Heatmap ── */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2 rounded-2xl border border-border bg-surface p-5 sm:p-6">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activePillar}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  {activePillar === "technical" && <PillarTechnical metrics={technical} />}
+                  {activePillar === "setpiece" && <PillarSetPiece metrics={setPieces} />}
+                  {activePillar === "gymplyo" && <PillarGymPlyo metrics={gymPlyo} />}
+                  {activePillar === "stamina" && <PillarStamina metrics={stamina} />}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            {/* ── Heatmap ── */}
+            <div className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Target size={16} className="text-primary" />
+                <h3 className="font-heading text-sm font-semibold text-foreground">Impact Distribution</h3>
+              </div>
+              <p className="mb-3 text-[11px] text-muted">
+                Kick &amp; throw-in landing positions — goal zone matrix
+              </p>
+              <TargetHeatmap />
+              <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3 text-[11px] text-muted">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-primary/70" /> On-target
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-accent/60" /> Off-target
+                </span>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Correction Hub ── */}
       <div className="rounded-2xl border border-border bg-surface p-5 sm:p-6">

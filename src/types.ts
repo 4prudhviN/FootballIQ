@@ -1,6 +1,15 @@
 /* ── Navigation ──────────────────────────────────────── */
 export type NavTab = "dashboard" | "upload" | "analysis" | "settings";
 
+/** Detected football actions from video analysis */
+export type FootballAction =
+  | "passing"
+  | "dribbling"
+  | "shooting"
+  | "goalkeeping"
+  | "defending"
+  | "movement";
+
 /** Sub-navigation pillar tabs inside the Analysis view */
 export type PillarTab = "technical" | "setpiece" | "gymplyo" | "stamina";
 
@@ -107,4 +116,6 @@ export interface AnalysisResult {
   gymPlyo?: GymPlyoMetrics;
   stamina?: StaminaMetrics;
   feedback?: FeedbackItem;
+  /** Detected football actions from activity_detector — drives dashboard cards */
+  detectedActions?: FootballAction[];
 }
