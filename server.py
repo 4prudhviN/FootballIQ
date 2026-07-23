@@ -37,6 +37,7 @@ from fastapi.responses import FileResponse
 from config.settings       import settings
 from pipeline.pipeline_manager import PipelineManager
 from reports.report_writer import ReportWriter
+from session.session_manager import SessionManager
 from utils.file_utils      import ensure_dir, save_bytes
 from utils.logger          import get_logger
 
@@ -77,7 +78,8 @@ _pipeline = PipelineManager(
     player_threshold      = 0.10,
     pose_model_complexity = settings.POSE_MODEL_COMPLEXITY,
 )
-_writer = ReportWriter()
+_writer  = ReportWriter()
+_session = SessionManager(writer=_writer)
 
 # In-memory job status store (replace with Redis in production)
 _jobs: dict[str, dict[str, Any]] = {}
@@ -140,8 +142,9 @@ async def upload_video(
         },
     }
 
-    # Persist JSON report.
-    _writer.save_json(payload, session_id=job_id)
+    # Persist JSON report and create session.
+    session = _session.create(output, file_name=file.filename or "upload.mp4")
+    payload["session_id"] = session.id
     log.info("Job %s complete — level=%s activities=%s",
              job_id, output.player_level, output.detected_activities)
 
