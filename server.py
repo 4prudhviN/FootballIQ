@@ -134,12 +134,16 @@ async def upload_video(
         "aiFeedback":         output.ai_feedback,
         "drills":             output.drills,
 
+        # New structured fields from full pipeline
+        "timeline":          output.timeline,
+        "skillProfile":      output.skill_profile,
+        "focusThisWeek":     output.focus_areas,
+        "trainingPlan":      output.training_plan,
+        "weeklyPlan":        output.weekly_plan,
+        "recoveryAdvice":    output.recovery_advice,
+        "coachingFeedback":  output.coaching_feedback,
+
         "_pipeline": output.diagnostics,
-        "_timings":  {
-            "total_s":          round(output.timings.total, 2),
-            "pose_estimate_s":  round(output.timings.pose_estimate, 2),
-            "feedback_s":       round(output.timings.feedback_engine, 2),
-        },
     }
 
     # Persist JSON report and create session.

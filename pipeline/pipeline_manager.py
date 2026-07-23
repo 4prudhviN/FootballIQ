@@ -1,48 +1,40 @@
 #!/usr/bin/env python3
 """
-Pipeline Manager  (v2)
-======================
-Orchestrates the full FootballIQ analysis pipeline using all
-properly structured modules.
+Pipeline Manager  (v3 — correct architecture)
+==============================================
 
-Pipeline order:
-  0. VideoLoader              — validate and open video
-  1. FrameExtractor           — sample frames
-  2. PlayerDetector           — confirm player is visible
-  3. BallDetector             — detect ball presence
-  4. PoseEstimator            — MediaPipe landmark extraction
-  5. ActivityDetector (AU)    — per-frame action scoring
-  6. ConfidenceFilter         — clean and deduplicate
-  7. ActivityClassifier       — video-level activity ranking
-  8. SequenceAnalyzer         — timeline segmentation
-  9. AnalyzerRegistry         — run activity-specific metric calculators
- 10. CoachSkillClassifier     — Beginner / Intermediate / Advanced
- 11. CoachFeedbackEngine      — grounded observations + adapted drills
- 12. DrillRecommender         — prioritised drill list
- 13. ExplanationEngine (AI)   — optional LLM natural-language wrapping
- 14. ReportWriter             — persist JSON report
+The LLM is the COMMUNICATOR, not the decision-maker.
+All football decisions come from measurable data and the coaching knowledge base.
 
-Usage::
+Correct pipeline order:
+  1.  Video
+  2.  Pipeline (player detect → ball detect → pose estimate)
+  3.  Activity Understanding (per-frame detect → classify → timeline → filter)
+  4.  Analyzer Selection     (registry routes to correct activity analyzers)
+  5.  Metrics                (pure number calculation per activity)
+  6.  Coach Engine           (skill classify → feedback → drill recommend)
+  7.  Recommendation Engine  (priority select → training plan → recovery advice)
+  8.  LLM                    (rewrites structured data into natural language ONLY)
+  9.  Report                 (JSON + overlays + charts persisted)
 
-    manager = PipelineManager()
-    output  = manager.run("path/to/clip.mp4")
+The LLM receives a fully structured coaching report and rewrites it into
+plain, motivating English. It adds NO new football decisions.
 """
 
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# ── Pipeline stages ─────────────────────────────────────────────────────────
-from pipeline.video_loader      import VideoLoader, VideoContext
-from pipeline.frame_extractor   import FrameExtractor, ExtractedFrame
-from pipeline.player_detector   import PlayerDetector, PlayerDetectionResult
-from pipeline.ball_detector     import BallDetector, BallDetectionResult
-from pipeline.pose_estimator    import PoseEstimator, PoseEstimationResult
+# ── 1–2. Core pipeline stages ───────────────────────────────────────────────
+from pipeline.video_loader    import VideoLoader, VideoContext
+from pipeline.frame_extractor import FrameExtractor, ExtractedFrame
+from pipeline.player_detector import PlayerDetector, PlayerDetectionResult
+from pipeline.ball_detector   import BallDetector, BallDetectionResult
+from pipeline.pose_estimator  import PoseEstimator, PoseEstimationResult
 
-# ── Activity understanding ───────────────────────────────────────────────────
+# ── 3. Activity understanding ────────────────────────────────────────────────
 from activity_understanding import (
     ActivityDetector  as AUActivityDetector,
     ActivityClassifier,
@@ -53,27 +45,54 @@ from activity_understanding import (
     ActivitySegment,
 )
 
-# ── Analyzer registry ────────────────────────────────────────────────────────
+# ── 4. Analyzer selection ────────────────────────────────────────────────────
 from analyzers.analyzer_registry import get_registry
 
-# ── Coach engine ─────────────────────────────────────────────────────────────
+# ── 5. (Metrics are calculated inside the registry analyzers) ────────────────
+
+# ── 6. Coach engine ──────────────────────────────────────────────────────────
 from coach_engine import (
     CoachSkillClassifier,
     CoachFeedbackEngine,
     DrillRecommender,
+    TerminologyAdapter,
 )
 
-# ── AI layer (optional) ──────────────────────────────────────────────────────
-from ai.explanation_engine import ExplanationEngine
+# ── 7. Recommendation engine ─────────────────────────────────────────────────
+from recommendation_engine.priority_selector import PrioritySelector
+from recommendation_engine.training_plan     import TrainingPlanGenerator
+from recommendation_engine.weekly_plan       import WeeklyPlanGenerator
+from recommendation_engine.recovery_advice   import RecoveryAdvisor
 
-# ── Config ───────────────────────────────────────────────────────────────────
+# ── 8. LLM — communicator only ───────────────────────────────────────────────
+from ai.explanation_engine import ExplanationEngine
+from ai.json_validator     import JSONValidator
+
+# ── Config & utils ───────────────────────────────────────────────────────────
 from config.settings   import settings
 from config.constants  import DEFAULT_FPS, PLAYER_DETECTION_THRESHOLD
-
-# ── Utils ────────────────────────────────────────────────────────────────────
-from utils.logger import get_logger
+from utils.logger      import get_logger
 
 log = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Timings
+# ---------------------------------------------------------------------------
+
+@dataclass
+class StageTimings:
+    video_load:         float = 0.0
+    frame_extract:      float = 0.0
+    player_detect:      float = 0.0
+    ball_detect:        float = 0.0
+    pose_estimate:      float = 0.0
+    activity_understand: float = 0.0
+    analyzer_metrics:   float = 0.0
+    coach_engine:       float = 0.0
+    recommendation:     float = 0.0
+    llm_rewrite:        float = 0.0
+    total:              float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -81,35 +100,40 @@ log = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 @dataclass
-class StageTimings:
-    video_load:        float = 0.0
-    frame_extract:     float = 0.0
-    player_detect:     float = 0.0
-    ball_detect:       float = 0.0
-    pose_estimate:     float = 0.0
-    activity_detect:   float = 0.0
-    metric_calc:       float = 0.0
-    skill_classify:    float = 0.0
-    feedback_engine:   float = 0.0
-    ai_explanation:    float = 0.0
-    total:             float = 0.0
-
-
-@dataclass
 class PipelineOutput:
     """
     Full analysis output — maps to FootballSession in types.ts.
+    The LLM-rewritten natural language is in ai_feedback.
+    All football decisions are in the structured fields.
     """
-    success:             bool
-    error:               Optional[str]
-    detected_activities: List[str]
-    player_level:        str
-    metrics:             Dict[str, Any]  = field(default_factory=dict)
-    ai_feedback:         Dict[str, Any]  = field(default_factory=dict)
-    drills:              List[Dict[str, Any]] = field(default_factory=list)
-    timeline:            List[Dict[str, Any]] = field(default_factory=list)
-    diagnostics:         Dict[str, Any]  = field(default_factory=dict)
-    timings:             StageTimings    = field(default_factory=StageTimings)
+    success:              bool
+    error:                Optional[str]
+
+    # ── 3. Activity Understanding ────────────────────────────────────────────
+    detected_activities:  List[str]
+    timeline:             List[Dict[str, Any]]   # ActivitySegment dicts
+
+    # ── 4–5. Metrics ─────────────────────────────────────────────────────────
+    player_level:         str
+    metrics:              Dict[str, Any]
+
+    # ── 6. Coach Engine output ────────────────────────────────────────────────
+    skill_profile:        Dict[str, Any]         # CoachSkillProfile.to_dict()
+    coaching_feedback:    Dict[str, Any]         # CoachFeedbackReport.to_dict()
+    drills:               List[Dict[str, Any]]
+
+    # ── 7. Recommendation Engine output ───────────────────────────────────────
+    focus_areas:          List[str]              # "Focus this week" labels
+    training_plan:        Dict[str, Any]
+    weekly_plan:          Dict[str, Any]
+    recovery_advice:      Dict[str, Any]
+
+    # ── 8. LLM rewrite (natural language ONLY, no new decisions) ─────────────
+    ai_feedback:          Dict[str, Any]
+
+    # ── Meta ──────────────────────────────────────────────────────────────────
+    diagnostics:          Dict[str, Any]  = field(default_factory=dict)
+    timings:              StageTimings    = field(default_factory=StageTimings)
 
 
 # ---------------------------------------------------------------------------
@@ -118,14 +142,19 @@ class PipelineOutput:
 
 class PipelineManager:
     """
-    Orchestrates all pipeline stages and returns a PipelineOutput.
+    Orchestrates the full 9-stage FootballIQ pipeline.
+
+    Architecture principle:
+      - Stages 1–7 are deterministic (no LLM)
+      - Stage 8 (LLM) only rewrites structured data into natural language
+      - Stage 9 (Report) persists the output
 
     Parameters
     ----------
-    frame_stride          : int   — sample every Nth frame
-    player_threshold      : float — min player detection confidence
-    pose_model_complexity : int   — 0=lite 1=full 2=heavy
-    use_ai                : bool  — whether to call the LLM layer
+    frame_stride          : int
+    player_threshold      : float
+    pose_model_complexity : int
+    use_ai                : bool — enable/disable LLM rewrite stage
     """
 
     def __init__(
@@ -140,39 +169,38 @@ class PipelineManager:
         self.pose_model_complexity = pose_model_complexity
         self.use_ai                = use_ai
 
-        # Singletons initialised once.
-        self._registry  = get_registry()
-        self._cf        = ConfidenceFilter()
-        self._ai_engine = ExplanationEngine() if use_ai else None
+        # Singletons — initialised once.
+        self._registry    = get_registry()
+        self._cf          = ConfidenceFilter()
+        self._terminology = TerminologyAdapter()
+        self._validator   = JSONValidator()
+        self._ai_engine   = ExplanationEngine() if use_ai else None
 
     def run(self, video_path: str) -> PipelineOutput:
         """Run the complete pipeline. Always returns — errors are captured."""
         t0      = time.perf_counter()
         timings = StageTimings()
-        context: Optional[VideoContext]  = None
-        estimator: Optional[PoseEstimator] = None
+        context:   Optional[VideoContext]   = None
+        estimator: Optional[PoseEstimator]  = None
 
         try:
-            # ── 0. Video load ────────────────────────────────────────────────
+            # ── STAGE 1: Video load ──────────────────────────────────────────
             t = time.perf_counter()
             context = VideoLoader().load(video_path)
             timings.video_load = time.perf_counter() - t
+            fps = context.fps or DEFAULT_FPS
             log.pipeline("video_load", "%dx%d @ %.1f fps  %d frames",
-                         context.width, context.height,
-                         context.fps, context.frame_count)
+                         context.width, context.height, fps, context.frame_count)
 
-            # ── 1. Frame extraction ──────────────────────────────────────────
+            # ── STAGE 2a: Frame extraction ───────────────────────────────────
             t = time.perf_counter()
             frames: List[ExtractedFrame] = FrameExtractor(
                 stride=self.frame_stride
             ).extract_all(context)
             timings.frame_extract = time.perf_counter() - t
-            log.pipeline("frame_extract", "%d frames (stride=%d)",
-                         len(frames), self.frame_stride)
+            log.pipeline("frame_extract", "%d frames", len(frames))
 
-            fps = context.fps or DEFAULT_FPS
-
-            # ── 2. Player detection ──────────────────────────────────────────
+            # ── STAGE 2b: Player detection ───────────────────────────────────
             t = time.perf_counter()
             player_result: PlayerDetectionResult = PlayerDetector(
                 threshold=self.player_threshold
@@ -182,65 +210,50 @@ class PipelineManager:
                          player_result.confidence * 100, player_result.passed)
 
             if not player_result.passed:
-                return PipelineOutput(
-                    success=False,
-                    error=(
-                        f"No player detected (confidence {player_result.confidence:.1%} "
-                        f"< {self.player_threshold:.0%}). "
-                        "Ensure the player is fully visible in the frame."
-                    ),
-                    detected_activities=[],
-                    player_level="Beginner",
+                return self._fail(
+                    f"No player detected (confidence {player_result.confidence:.1%}). "
+                    "Ensure the player is fully visible in the frame.",
+                    timings, t0,
                 )
 
-            # ── 3. Ball detection ────────────────────────────────────────────
+            # ── STAGE 2c: Ball detection ─────────────────────────────────────
             t = time.perf_counter()
             ball_result: BallDetectionResult = BallDetector().detect(frames)
             timings.ball_detect = time.perf_counter() - t
             log.pipeline("ball_detect", "conf=%.1f%%  found=%s",
                          ball_result.confidence * 100, ball_result.ball_detected)
 
-            # ── 4. Pose estimation ───────────────────────────────────────────
+            # ── STAGE 2d: Pose estimation ────────────────────────────────────
             t = time.perf_counter()
-            estimator = PoseEstimator(
-                model_complexity=self.pose_model_complexity
-            )
+            estimator    = PoseEstimator(model_complexity=self.pose_model_complexity)
             pose_result: PoseEstimationResult = estimator.estimate(frames)
             timings.pose_estimate = time.perf_counter() - t
             log.pipeline("pose_estimate", "%d/%d frames  warnings=%s",
-                         pose_result.detected_frames,
-                         pose_result.total_frames,
+                         pose_result.detected_frames, pose_result.total_frames,
                          pose_result.warnings)
 
-            # ── 5–8. Activity understanding ───────────────────────────────────
+            # ── STAGE 3: Activity Understanding ─────────────────────────────
             t = time.perf_counter()
 
-            # 5. Per-frame detection
             raw_dets: List[RawActivityDetection] = AUActivityDetector().detect(
                 pose_result, ball_result
             )
-
-            # 6. Confidence filtering + deduplication
             raw_dets = self._cf.filter_raw(raw_dets)
             raw_dets = self._cf.deduplicate_frame(raw_dets)
 
-            # 7. Video-level classification
             classified: List[ClassifiedActivity] = ActivityClassifier.classify(raw_dets)
             classified = self._cf.filter_classified(classified)
             classified = self._cf.normalise(classified)
 
-            # 8. Timeline segmentation
             timeline: List[ActivitySegment] = SequenceAnalyzer.analyze(raw_dets, fps=fps)
 
             activities = [c.action for c in classified] if classified else ["passing"]
-            if not activities:
-                activities = ["passing"]
 
-            timings.activity_detect = time.perf_counter() - t
-            log.pipeline("activity_detect", "activities=%s  segments=%d",
+            timings.activity_understand = time.perf_counter() - t
+            log.pipeline("activity_understand", "activities=%s  segments=%d",
                          activities, len(timeline))
 
-            # ── 9. Metric calculation (analyzer registry) ────────────────────
+            # ── STAGE 4–5: Analyzer Selection + Metrics ──────────────────────
             t = time.perf_counter()
             action_metrics = self._registry.run_for_activities(
                 activities, frames, pose_result, ball_result
@@ -250,68 +263,74 @@ class PipelineManager:
                 for action, am in action_metrics.items()
             }
 
-            # Core biomechanical scalars from pose.
-            torso_lean     = pose_result.avg_torso_lean  or 8.0
-            knee_stability = max(0.0, 100.0 - (pose_result.avg_knee_dev  or 0.0) * 100)
-            gait_symmetry  = max(0.0, 100.0 - (pose_result.gait_asymmetry or 0.0) * 100)
+            torso_lean      = pose_result.avg_torso_lean  or 8.0
+            knee_stability  = max(0.0, 100.0 - (pose_result.avg_knee_dev  or 0.0) * 100)
+            gait_symmetry   = max(0.0, 100.0 - (pose_result.gait_asymmetry or 0.0) * 100)
 
-            timings.metric_calc = time.perf_counter() - t
-            log.pipeline("metric_calc", "torso=%.1f°  knee=%.0f  gait=%.0f",
-                         torso_lean, knee_stability, gait_symmetry)
-
-            # ── 10. Skill classification ──────────────────────────────────────
-            t = time.perf_counter()
-            raw_metric_dict = {
+            raw_metrics = {
                 "torso_lean":     abs(torso_lean),
                 "knee_dev":       1.0 - knee_stability / 100.0,
                 "gait_asymmetry": 1.0 - gait_symmetry  / 100.0,
             }
-            skill_profile = CoachSkillClassifier().classify(raw_metric_dict)
-            player_level  = skill_profile.level
-            timings.skill_classify = time.perf_counter() - t
-            log.pipeline("skill_classify", "level=%s  score=%.3f",
-                         player_level, skill_profile.overall_score)
 
-            # ── 11. Feedback engine ───────────────────────────────────────────
+            timings.analyzer_metrics = time.perf_counter() - t
+            log.pipeline("metrics", "torso=%.1f°  knee=%.0f  gait=%.0f",
+                         torso_lean, knee_stability, gait_symmetry)
+
+            # ── STAGE 6: Coach Engine ────────────────────────────────────────
             t = time.perf_counter()
+
+            skill_profile   = CoachSkillClassifier().classify(raw_metrics)
+            player_level    = skill_profile.level
+
             primary_activity = activities[0] if activities else "general"
-            feedback_report  = CoachFeedbackEngine().generate(
-                skill_profile,
-                activity=primary_activity,
-                metrics=raw_metric_dict,
+
+            feedback_report = CoachFeedbackEngine(
+                adapter=self._terminology
+            ).generate(skill_profile, activity=primary_activity, metrics=raw_metrics)
+
+            drills_list = DrillRecommender(
+                adapter=self._terminology
+            ).recommend(skill_profile, activity=primary_activity)
+
+            timings.coach_engine = time.perf_counter() - t
+            log.pipeline("coach_engine", "level=%s  issues=%d  drills=%d",
+                         player_level, len(feedback_report.items), len(drills_list))
+
+            # ── STAGE 7: Recommendation Engine ──────────────────────────────
+            t = time.perf_counter()
+
+            focus_areas = PrioritySelector().select(skill_profile)
+            training_plan = TrainingPlanGenerator().generate(
+                player_level, focus_areas, drills_list
             )
-            timings.feedback_engine = time.perf_counter() - t
-            log.pipeline("feedback_engine", "%d issues  level=%s",
-                         len(feedback_report.items), player_level)
-
-            # ── 12. Drill recommendations ─────────────────────────────────────
-            drills_list = DrillRecommender().recommend(skill_profile, activity=primary_activity)
-
-            drill_dicts = [
+            weekly_plan = WeeklyPlanGenerator().generate(training_plan)
+            recovery    = RecoveryAdvisor().advise(
                 {
-                    "name":         d.name,
-                    "targetMetric": d.target_metric,
-                    "instructions": d.instructions,
-                    "coachTip":     d.coach_tip,
-                    "duration":     d.duration,
-                    "difficulty":   d.difficulty,
-                    "priority":     d.priority,
-                }
-                for d in drills_list
-            ]
+                    "torso_lean":     abs(torso_lean),
+                    "knee_stability": knee_stability,
+                    "gait_symmetry":  gait_symmetry,
+                },
+                player_level=player_level,
+            )
 
-            # ── 13. AI explanation (optional) ─────────────────────────────────
-            ai_feedback: Dict[str, Any] = {
-                "summary":         feedback_report.summary,
-                "strengths":       feedback_report.positive,
-                "weaknesses":      [i.metric.replace("_", " ").title()
-                                    for i in feedback_report.items],
-                "coachingTips":    [i.adapted_coach_tip for i in feedback_report.items],
-                "motivationalTip": feedback_report.motivational_tip,
-            }
+            timings.recommendation = time.perf_counter() - t
+            log.pipeline("recommendation", "focus=%s  rest=%s",
+                         [a.label for a in focus_areas[:2]], recovery.rest_day_recommended)
+
+            # ── STAGE 8: LLM rewrite (communicator only) ─────────────────────
+            # The LLM receives structured coaching data and rewrites it into
+            # natural language. It makes NO new football decisions.
+            t = time.perf_counter()
+
+            # Build structured data for the LLM to rewrite.
+            structured_coaching = self._build_structured_coaching(
+                feedback_report, focus_areas, drills_list, recovery, player_level
+            )
+
+            ai_feedback = structured_coaching   # start with deterministic output
 
             if self._ai_engine and self.use_ai:
-                t = time.perf_counter()
                 try:
                     ai_report = self._ai_engine.explain(
                         detected_activities = activities,
@@ -323,43 +342,36 @@ class PipelineManager:
                         by_action           = by_action,
                         video_duration_s    = context.duration_s,
                     )
-                    # Merge AI summary into the deterministic feedback.
-                    ai_feedback["summary"]         = ai_report.summary or ai_feedback["summary"]
-                    ai_feedback["coachingTips"]    = ai_report.coaching_tips or ai_feedback["coachingTips"]
-                    ai_feedback["motivationalTip"] = ai_report.coach_tip   or ai_feedback["motivationalTip"]
+                    # Validate the LLM rewrite.
+                    validation = self._validator.validate_feedback_response(
+                        str(ai_report.to_ai_feedback_dict())
+                    )
 
-                    if not drill_dicts and ai_report.drills:
-                        drill_dicts = [
-                            {"name": d.name, "instructions": d.instructions,
-                             "duration": d.duration, "targetMetric": "", "difficulty": player_level}
-                            for d in ai_report.drills
-                        ]
-                    timings.ai_explanation = time.perf_counter() - t
-                    log.pipeline("ai_explanation", "provider=%s  latency=%.2fs",
-                                 ai_report.provider, ai_report.latency_s)
+                    # Only use LLM output to REWRITE language — keep all
+                    # structured coaching decisions from Stage 6–7.
+                    if ai_report.summary:
+                        ai_feedback["summary"] = ai_report.summary
+                    if ai_report.coach_tip:
+                        ai_feedback["motivationalTip"] = ai_report.coach_tip
+                    if ai_report.coaching_tips:
+                        ai_feedback["coachingTips"] = ai_report.coaching_tips
+
+                    log.pipeline("llm_rewrite", "provider=%s  repaired=%s  latency=%.2fs",
+                                 ai_report.provider, ai_report.was_repaired, ai_report.latency_s)
                 except Exception as ai_exc:
-                    log.warning("AI explanation failed (non-fatal): %s", ai_exc)
-                    timings.ai_explanation = time.perf_counter() - t
+                    log.warning("LLM rewrite failed (non-fatal, using deterministic output): %s",
+                                ai_exc)
 
-            # ── 14. Assemble output ───────────────────────────────────────────
-            timings.total = time.perf_counter() - t0
+            timings.llm_rewrite = time.perf_counter() - t
+            timings.total       = time.perf_counter() - t0
             log.timing("total", timings.total)
 
+            # ── STAGE 9: Assemble output ─────────────────────────────────────
             return PipelineOutput(
-                success              = True,
-                error                = None,
-                detected_activities  = activities,
-                player_level         = player_level,
-                metrics              = {
-                    "byAction":      by_action,
-                    "torsoLean":     round(abs(torso_lean), 1),
-                    "kneeStability": round(knee_stability, 1),
-                    "gaitSymmetry":  round(gait_symmetry, 1),
-                    "warnings":      pose_result.warnings,
-                },
-                ai_feedback          = ai_feedback,
-                drills               = drill_dicts,
-                timeline             = [
+                success             = True,
+                error               = None,
+                detected_activities = activities,
+                timeline            = [
                     {
                         "label":      seg.label,
                         "action":     seg.action,
@@ -370,30 +382,53 @@ class PipelineManager:
                     }
                     for seg in timeline
                 ],
-                diagnostics          = {
+                player_level        = player_level,
+                metrics             = {
+                    "byAction":      by_action,
+                    "torsoLean":     round(abs(torso_lean), 1),
+                    "kneeStability": round(knee_stability, 1),
+                    "gaitSymmetry":  round(gait_symmetry, 1),
+                    "warnings":      pose_result.warnings,
+                },
+                skill_profile       = skill_profile.to_dict(),
+                coaching_feedback   = feedback_report.to_dict(),
+                drills              = [
+                    {
+                        "name":         d.name,
+                        "targetMetric": d.target_metric,
+                        "instructions": d.instructions,
+                        "coachTip":     d.coach_tip,
+                        "duration":     d.duration,
+                        "difficulty":   d.difficulty,
+                        "priority":     d.priority,
+                    }
+                    for d in drills_list
+                ],
+                focus_areas         = [a.label for a in focus_areas],
+                training_plan       = training_plan.to_dict(),
+                weekly_plan         = weekly_plan.to_dict(),
+                recovery_advice     = recovery.to_dict(),
+                ai_feedback         = ai_feedback,
+                diagnostics         = {
                     "player_detection": {
                         "confidence": player_result.confidence,
                         "passed":     player_result.passed,
                     },
                     "ball_detection": {
-                        "confidence":   ball_result.confidence,
+                        "confidence":    ball_result.confidence,
                         "ball_detected": ball_result.ball_detected,
                     },
                     "pose": {
                         "detected_frames": pose_result.detected_frames,
                         "total_frames":    pose_result.total_frames,
                     },
-                    "skill": {
-                        "overall_score": skill_profile.overall_score,
-                        "top_gap":       skill_profile.top_gap,
-                        "top_strength":  skill_profile.top_strength,
-                    },
                     "timings": {
-                        "total_s":          round(timings.total, 2),
-                        "pose_s":           round(timings.pose_estimate, 2),
-                        "activity_s":       round(timings.activity_detect, 2),
-                        "feedback_s":       round(timings.feedback_engine, 2),
-                        "ai_s":             round(timings.ai_explanation, 2),
+                        "total_s":           round(timings.total, 2),
+                        "pose_s":            round(timings.pose_estimate, 2),
+                        "activity_s":        round(timings.activity_understand, 2),
+                        "coach_s":           round(timings.coach_engine, 2),
+                        "recommendation_s":  round(timings.recommendation, 2),
+                        "llm_s":             round(timings.llm_rewrite, 2),
                     },
                 },
                 timings = timings,
@@ -402,16 +437,52 @@ class PipelineManager:
         except Exception as exc:
             timings.total = time.perf_counter() - t0
             log.error("Pipeline failed: %s", exc, exc_info=True)
-            return PipelineOutput(
-                success=False,
-                error=str(exc),
-                detected_activities=[],
-                player_level="Beginner",
-                timings=timings,
-            )
+            return self._fail(str(exc), timings, t0)
 
         finally:
             if estimator:
                 estimator.close()
             if context:
                 context.release()
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_structured_coaching(
+        feedback_report: Any,
+        focus_areas:     list,
+        drills:          list,
+        recovery:        Any,
+        player_level:    str,
+    ) -> Dict[str, Any]:
+        """
+        Build the ai_feedback dict from deterministic coach engine output.
+        This is the baseline — the LLM only rewrites the language, not the content.
+        """
+        return {
+            "summary":         feedback_report.summary,
+            "strengths":       feedback_report.positive,
+            "weaknesses":      [i.metric.replace("_", " ").title()
+                                for i in feedback_report.items],
+            "coachingTips":    [i.adapted_coach_tip for i in feedback_report.items],
+            "motivationalTip": feedback_report.motivational_tip,
+            "focusThisWeek":   [a.label for a in focus_areas],
+            "priorityDrill":   drills[0].name if drills else None,
+            "recoveryAdvice":  [item.advice for item in recovery.items[:2]],
+            "restDayRecommended": recovery.rest_day_recommended,
+        }
+
+    @staticmethod
+    def _fail(error: str, timings: StageTimings, t0: float) -> PipelineOutput:
+        timings.total = time.perf_counter() - t0
+        return PipelineOutput(
+            success=False, error=error,
+            detected_activities=[], timeline=[],
+            player_level="Beginner",
+            metrics={}, skill_profile={}, coaching_feedback={},
+            drills=[], focus_areas=[], training_plan={},
+            weekly_plan={}, recovery_advice={}, ai_feedback={},
+            timings=timings,
+        )
