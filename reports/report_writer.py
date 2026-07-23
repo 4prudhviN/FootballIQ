@@ -46,6 +46,8 @@ class ReportWriter:
         self._json_dir  = ensure_dir(self._base / "json")
         self._img_dir   = ensure_dir(self._base / "images")
         self._pdf_dir   = ensure_dir(self._base / "pdf")
+        self._chart_dir = ensure_dir(self._base / "charts")
+        self._overlay_dir = ensure_dir(self._base / "overlays")
 
     # ------------------------------------------------------------------
     # JSON
@@ -88,6 +90,14 @@ class ReportWriter:
             reverse=True,
         )
         return [p.stem for p in files]
+
+    def chart_dir(self, session_id: str) -> Path:
+        """Return (and create) the chart output directory for a session."""
+        return ensure_dir(self._chart_dir / session_id)
+
+    def overlay_dir(self, session_id: str) -> Path:
+        """Return (and create) the overlay output directory for a session."""
+        return ensure_dir(self._overlay_dir / session_id)
 
     # ------------------------------------------------------------------
     # Images (placeholder — implemented when frame export is added)
