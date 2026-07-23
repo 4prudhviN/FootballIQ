@@ -1,0 +1,28 @@
+{
+  "name": "movement",
+  "display_name": "Movement",
+  "description": "Efficient locomotion including sprinting, jogging, turning, and positioning.",
+  "key_principles": [
+    "Run on the balls of your feet, not your heels",
+    "Drive your arms to increase stride rate",
+    "Keep your torso upright and relaxed",
+    "Use short sharp steps when changing direction",
+    "Scan the pitch constantly while moving"
+  ],
+  "common_metrics": [
+    "max_sprint_speed",
+    "gait_asymmetry_index",
+    "stride_frequency",
+    "total_distance_covered",
+    "acceleration_bursts"
+  ],
+  "sub_skills": ["sprinting", "agility", "positioning", "recovery_runs", "pressing"],
+  "muscle_groups": ["quadriceps", "hamstrings", "glutes", "calf", "hip_flexors", "core"],
+  "typical_errors": [
+    "heel_striking",
+    "asymmetric_stride",
+    "slow_ground_contact",
+    "poor_arm_drive",
+    "upright_torso_on_sprint"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "drills": [
+    {
+      "id": "lateral_band_walk",
+      "name": "Lateral Band Walk",
+      "target_metric": "gait_asymmetry_index",
+      "difficulty": "Beginner",
+      "duration": "8 min",
+      "equipment": ["resistance band"],
+      "instructions": "Band above knees. 20 side steps each direction. 3 sets.",
+      "coach_tip": "Push knee outward over middle toe on every step.",
+      "progression": "Add a squat between each step."
+    },
+    {
+      "id": "single_leg_bounds",
+      "name": "Single-Leg Bounds",
+      "target_metric": "gait_asymmetry_index",
+      "difficulty": "Intermediate",
+      "duration": "12 min",
+      "equipment": ["open space"],
+      "instructions": "Bound 20 m on one leg, switch. 5 sets each side.",
+      "coach_tip": "Count steps each side — equal rhythm, equal power.",
+      "progression": "Measure distance per bound and compare sides."
+    },
+    {
+      "id": "sprint_reaction",
+      "name": "Sprint Reaction Drill",
+      "target_metric": "max_sprint_speed",
+      "difficulty": "Intermediate",
+      "duration": "15 min",
+      "equipment": ["cones", "partner"],
+      "instructions": "Start in athletic stance. On partner's signal sprint 15 m. 6 reps with full recovery.",
+      "coach_tip": "Drive your arms — faster arms means faster legs.",
+      "progression": "Add direction changes on second signal."
+    }
+  ]
+}

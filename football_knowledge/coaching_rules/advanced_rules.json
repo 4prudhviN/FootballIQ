@@ -1,0 +1,25 @@
+{
+  "level": "Advanced",
+  "rules": [
+    {
+      "id": "marginal_gains",
+      "rule": "At advanced level, a 2–3% improvement in any metric can be the difference between winning and losing.",
+      "reason": "Elite performance improvement is about compounding small gains, not fixing obvious mistakes."
+    },
+    {
+      "id": "fatigue_testing",
+      "rule": "Measure technical quality at full fatigue — not just in fresh conditions.",
+      "reason": "Advanced players must maintain technique in the 80th minute. Training only when fresh does not prepare for this."
+    },
+    {
+      "id": "opposition_analysis",
+      "rule": "Tailor technical sessions to exploit specific opponent weaknesses.",
+      "reason": "Advanced players have the tactical awareness to translate technical skill into match-specific advantages."
+    },
+    {
+      "id": "mental_rehearsal",
+      "rule": "Combine physical repetitions with mental visualisation of perfect execution.",
+      "reason": "Neuroscience shows that mental rehearsal activates the same motor pathways as physical practice."
+    }
+  ]
+}

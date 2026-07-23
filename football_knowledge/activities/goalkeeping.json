@@ -1,0 +1,28 @@
+{
+  "name": "goalkeeping",
+  "display_name": "Goalkeeping",
+  "description": "Preventing goals through shot-stopping, distribution, and organisation.",
+  "key_principles": [
+    "Set position: balanced stance, weight on balls of feet",
+    "Narrow the angle — come off the line to reduce shooting space",
+    "Catch with both hands when possible, punch only when necessary",
+    "Distribute quickly and accurately to restart attacks",
+    "Organise the defence constantly"
+  ],
+  "common_metrics": [
+    "save_percentage",
+    "reaction_time",
+    "average_diving_range",
+    "distribution_accuracy",
+    "positioning_score"
+  ],
+  "sub_skills": ["shot_stopping", "distribution", "claiming_crosses", "sweeping", "command_of_area"],
+  "muscle_groups": ["core", "shoulder", "glutes", "quadriceps", "hip_flexors"],
+  "typical_errors": [
+    "flat_footed_set_position",
+    "diving_too_early",
+    "parrying_into_danger",
+    "poor_starting_position",
+    "slow_distribution"
+  ]
+}

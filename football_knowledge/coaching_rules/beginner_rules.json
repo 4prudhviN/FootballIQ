@@ -1,0 +1,30 @@
+{
+  "level": "Beginner",
+  "rules": [
+    {
+      "id": "one_focus_per_session",
+      "rule": "Focus on one technical point per session only.",
+      "reason": "Beginners cannot process multiple corrections simultaneously. One clear cue leads to faster improvement."
+    },
+    {
+      "id": "slow_before_fast",
+      "rule": "Practise at 50% speed until the movement feels natural, then gradually increase pace.",
+      "reason": "Motor patterns are built through repetition at manageable speeds. Speed before technique leads to bad habits."
+    },
+    {
+      "id": "repetition_over_variety",
+      "rule": "200+ repetitions of the same skill per session before moving to a new drill.",
+      "reason": "Beginners need volume of the same movement to build a motor pattern. Variety too early confuses muscle memory."
+    },
+    {
+      "id": "positive_feedback_first",
+      "rule": "Always identify one thing the player did well before correcting anything.",
+      "reason": "Confidence is a beginner's most fragile asset. Positive reinforcement keeps them engaged."
+    },
+    {
+      "id": "no_jargon",
+      "rule": "Never use technical terms without immediately explaining them in plain language.",
+      "reason": "Technical jargon creates distance between the player and the instruction. Plain language = faster understanding."
+    }
+  ]
+}

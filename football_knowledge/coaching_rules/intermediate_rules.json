@@ -1,0 +1,25 @@
+{
+  "level": "Intermediate",
+  "rules": [
+    {
+      "id": "pressure_progression",
+      "rule": "Introduce defensive pressure only after the player can execute at 80% consistency without pressure.",
+      "reason": "Adding difficulty before the base skill is solid breaks down technique under match conditions."
+    },
+    {
+      "id": "weak_side_emphasis",
+      "rule": "Allocate 40% of technical work to the non-dominant side.",
+      "reason": "Intermediate players have established dominant-foot patterns. Closing the gap now is far easier than at advanced level."
+    },
+    {
+      "id": "video_analysis",
+      "rule": "Review footage at 0.5× speed at least once per week.",
+      "reason": "Intermediate players can begin to self-correct when they see their movement objectively."
+    },
+    {
+      "id": "decision_speed",
+      "rule": "Reduce decision time in drills as technical quality improves.",
+      "reason": "The transition from Intermediate to Advanced is largely about making correct decisions faster."
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "drills": [
+    {
+      "id": "shooting_lean_correction",
+      "name": "Wall Lean Shooting Drill",
+      "target_metric": "torso_lean_at_contact",
+      "difficulty": "Beginner",
+      "duration": "10 min",
+      "equipment": ["wall", "ball"],
+      "instructions": "Stand 30 cm from a wall. Drive your kicking knee up without your back touching the wall. 3 × 15 reps each leg. Then take 20 shots focusing on the same body position.",
+      "coach_tip": "At contact, your chest should be over the ball. Think: chin down, chest forward.",
+      "progression": "Take shots from different angles — always check your lean on replay."
+    },
+    {
+      "id": "shooting_placement_target",
+      "name": "Corner Placement Drill",
+      "target_metric": "shot_accuracy",
+      "difficulty": "Intermediate",
+      "duration": "15 min",
+      "equipment": ["goal", "ball", "cones"],
+      "instructions": "Place cones in each corner of the goal (1 m from post and bar). Strike 30 shots — aim for each corner 7–8 times. Count hits.",
+      "coach_tip": "Inside foot for placement — strike through the side of the ball.",
+      "progression": "Add a goalkeeper. Shoot after receiving a pass — first time."
+    },
+    {
+      "id": "shooting_power_laces",
+      "name": "Laces Power Drive",
+      "target_metric": "average_shot_velocity",
+      "difficulty": "Intermediate",
+      "duration": "12 min",
+      "equipment": ["goal or wall", "ball"],
+      "instructions": "From 20 m, strike 15 shots with full laces contact. Focus on a complete follow-through, foot pointed toward goal after contact.",
+      "coach_tip": "Lock your ankle, strike through the middle of the ball, and finish with your kicking foot pointing at the target.",
+      "progression": "Increase distance to 25 m. Use a tee for consistency."
+    }
+  ]
+}

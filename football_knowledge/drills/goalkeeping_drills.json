@@ -1,0 +1,26 @@
+{
+  "drills": [
+    {
+      "id": "reaction_saves",
+      "name": "Reaction Save Drill",
+      "target_metric": "reaction_time",
+      "difficulty": "Beginner",
+      "duration": "10 min",
+      "equipment": ["goal", "ball", "partner"],
+      "instructions": "GK in set position. Partner shoots from 8 m with minimal wind-up. 20 saves each side.",
+      "coach_tip": "Stay on balls of feet. Watch the ball, not the shooter's body.",
+      "progression": "Reduce distance to 6 m."
+    },
+    {
+      "id": "diving_range",
+      "name": "Diving Range Extension",
+      "target_metric": "average_diving_range",
+      "difficulty": "Intermediate",
+      "duration": "15 min",
+      "equipment": ["goal", "ball", "cones"],
+      "instructions": "Cones placed 1.5 m each side of GK. Partner rolls ball to cone — GK dives to save. 15 each side.",
+      "coach_tip": "Drive your lead knee outward as you dive for extra reach.",
+      "progression": "Extend cones to 2 m. Add height variation."
+    }
+  ]
+}

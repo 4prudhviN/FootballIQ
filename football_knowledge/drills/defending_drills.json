@@ -1,0 +1,26 @@
+{
+  "drills": [
+    {
+      "id": "jockeying_drill",
+      "name": "Jockeying and Delay",
+      "target_metric": "positioning_score",
+      "difficulty": "Beginner",
+      "duration": "10 min",
+      "equipment": ["cones", "partner"],
+      "instructions": "Defender jockeys attacker across 10 m without diving in. 3-minute rounds. Stay on your feet.",
+      "coach_tip": "Stay on the balls of your feet, side-on stance, force them wide.",
+      "progression": "Allow the defender one tackle attempt at the end zone."
+    },
+    {
+      "id": "tackle_timing",
+      "name": "Tackle Timing Gate",
+      "target_metric": "tackle_success_rate",
+      "difficulty": "Intermediate",
+      "duration": "12 min",
+      "equipment": ["cones", "partner"],
+      "instructions": "Attacker runs through a 3 m gate with ball. Defender must tackle cleanly inside the gate. 10 attempts each.",
+      "coach_tip": "Wait for the heavy touch before committing.",
+      "progression": "Reduce gate width to 2 m."
+    }
+  ]
+}

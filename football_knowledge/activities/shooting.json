@@ -1,0 +1,28 @@
+{
+  "name": "shooting",
+  "display_name": "Shooting",
+  "description": "Striking the ball with power and accuracy toward the goal.",
+  "key_principles": [
+    "Chest over the ball — lean forward not backward",
+    "Plant foot beside the ball, not behind it",
+    "Strike with laces for power, inside foot for placement",
+    "Follow through fully after contact",
+    "Keep eyes on the ball until after contact"
+  ],
+  "common_metrics": [
+    "shot_accuracy",
+    "average_shot_velocity",
+    "launch_angle",
+    "torso_lean_at_contact",
+    "foot_strike_contact"
+  ],
+  "sub_skills": ["power_shots", "placement_shots", "volleys", "headers"],
+  "muscle_groups": ["quadriceps", "hip_flexors", "glutes", "core", "calf"],
+  "typical_errors": [
+    "leaning_back_at_contact",
+    "planting_foot_behind_ball",
+    "toe_poking",
+    "poor_follow_through",
+    "looking_up_too_early"
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "support_foot": {
+    "Beginner":     "The foot you place beside the ball before kicking.",
+    "Intermediate": "Your plant foot — positioned beside the ball at contact.",
+    "Advanced":     "Plant foot placement relative to ball contact point."
+  },
+  "plant_foot": {
+    "Beginner":     "The foot you put on the ground next to the ball.",
+    "Intermediate": "Your non-kicking foot, placed beside the ball.",
+    "Advanced":     "The stance foot used to stabilise during ball strike."
+  },
+  "weak_foot": {
+    "Beginner":     "Your less-practised foot — the one you don't usually kick with.",
+    "Intermediate": "Your non-dominant foot.",
+    "Advanced":     "Non-dominant foot."
+  },
+  "first_touch": {
+    "Beginner":     "What you do with the ball the moment it arrives to you.",
+    "Intermediate": "Ball control on the first contact.",
+    "Advanced":     "First-touch quality — direction and cushioning under pressure."
+  },
+  "instep": {
+    "Beginner":     "The top of your foot — the laces area.",
+    "Intermediate": "The instep — top of your foot over the laces.",
+    "Advanced":     "Instep (dorsal foot surface) contact."
+  },
+  "valgus_collapse": {
+    "Beginner":     "Your knee falling inward when you land or kick.",
+    "Intermediate": "Medial knee collapse — often caused by weak hip muscles.",
+    "Advanced":     "Dynamic valgus — address with hip abductor strengthening."
+  },
+  "torso_lean": {
+    "Beginner":     "How far your upper body is leaning forward or backward.",
+    "Intermediate": "Upper-body lean angle at the moment of contact.",
+    "Advanced":     "Trunk lean relative to the vertical axis at ball strike."
+  },
+  "gait_asymmetry": {
+    "Beginner":     "An imbalance between your left and right running steps.",
+    "Intermediate": "Uneven stride length between your left and right legs.",
+    "Advanced":     "Bilateral gait asymmetry — stride length differential."
+  },
+  "follow_through": {
+    "Beginner":     "Continuing to swing your leg after kicking the ball.",
+    "Intermediate": "Completing the kicking motion past ball contact.",
+    "Advanced":     "Post-contact leg swing arc — affects trajectory and power."
+  },
+  "touch_tightness": {
+    "Beginner":     "How close you keep the ball to your feet while dribbling.",
+    "Intermediate": "How tightly you control the ball while running with it.",
+    "Advanced":     "Ball-to-foot proximity index during dynamic dribbling."
+  },
+  "ground_contact_time": {
+    "Beginner":     "How long your foot stays on the ground with each step.",
+    "Intermediate": "Time your foot spends on the ground per stride.",
+    "Advanced":     "Ground contact time (GCT) — target < 200 ms for explosive running."
+  },
+  "hip_flexor": {
+    "Beginner":     "The muscle at the top of your thigh that lifts your leg up.",
+    "Intermediate": "Hip flexor — the muscle driving your knee lift.",
+    "Advanced":     "Hip flexor recruitment during the swing phase."
+  },
+  "pressing": {
+    "Beginner":     "Running at the player with the ball to win it back quickly.",
+    "Intermediate": "Pressuring the ball carrier to force a mistake.",
+    "Advanced":     "High-intensity press — coordinated team defensive trigger."
+  },
+  "plyometrics": {
+    "Beginner":     "Explosive jumping and hopping exercises that build power.",
+    "Intermediate": "Explosive jump training to build fast-twitch power.",
+    "Advanced":     "Plyometric loading — stretch-shortening cycle development."
+  },
+  "centre_of_gravity": {
+    "Beginner":     "The point in your body where your balance is centred.",
+    "Intermediate": "Your body's balance point.",
+    "Advanced":     "Centre of mass displacement during dynamic movement."
+  }
+}

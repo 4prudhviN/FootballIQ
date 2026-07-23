@@ -1,0 +1,27 @@
+{
+  "name": "passing",
+  "display_name": "Passing",
+  "description": "Delivering the ball accurately to a teammate using any legal body part.",
+  "key_principles": [
+    "Plant foot beside the ball, pointing toward target",
+    "Strike through the centre of the ball for accuracy",
+    "Follow through toward the target after contact",
+    "Head steady, eyes on the ball at moment of contact",
+    "Use inside of foot for short passes, laces for driven passes"
+  ],
+  "common_metrics": [
+    "passing_accuracy",
+    "pass_completion_rate",
+    "average_pass_speed",
+    "weak_foot_ratio",
+    "first_touch_control"
+  ],
+  "sub_skills": ["short_passing", "long_passing", "through_balls", "crosses"],
+  "muscle_groups": ["quadriceps", "hip_flexors", "glutes", "calf"],
+  "typical_errors": [
+    "leaning_back_at_contact",
+    "plant_foot_too_far_from_ball",
+    "poor_follow_through",
+    "weak_foot_avoidance"
+  ]
+}

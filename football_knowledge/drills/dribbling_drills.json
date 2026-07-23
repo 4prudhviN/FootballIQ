@@ -1,0 +1,37 @@
+{
+  "drills": [
+    {
+      "id": "cone_slalom",
+      "name": "Cone Slalom",
+      "target_metric": "touch_tightness_index",
+      "difficulty": "Beginner",
+      "duration": "10 min",
+      "equipment": ["8 cones", "ball"],
+      "instructions": "Set 8 cones in a line, 1 m apart. Dribble through using alternate feet. 10 runs at 70% pace, 5 at full pace.",
+      "coach_tip": "Keep the ball within one touch of your feet at all times.",
+      "progression": "Reduce cone spacing to 0.7 m."
+    },
+    {
+      "id": "1v1_box",
+      "name": "1v1 Box Dribbling",
+      "target_metric": "dribble_success_rate",
+      "difficulty": "Intermediate",
+      "duration": "15 min",
+      "equipment": ["4 cones", "ball", "partner"],
+      "instructions": "5 m × 5 m box. Attacker must dribble past defender and touch far cone. 2-minute rounds, swap roles.",
+      "coach_tip": "Use a body feint before accelerating. Commit to your move.",
+      "progression": "Reduce box to 4 m × 4 m."
+    },
+    {
+      "id": "speed_dribble_sprint",
+      "name": "Speed Dribble Sprint",
+      "target_metric": "average_speed_with_ball",
+      "difficulty": "Intermediate",
+      "duration": "12 min",
+      "equipment": ["2 cones", "ball"],
+      "instructions": "20 m straight line. Sprint with the ball from cone to cone. 8 reps. Count touches — aim for 3–4 touches maximum.",
+      "coach_tip": "Push the ball ahead of you further than feels comfortable. Trust your pace.",
+      "progression": "Add a 90-degree turn at the end."
+    }
+  ]
+}

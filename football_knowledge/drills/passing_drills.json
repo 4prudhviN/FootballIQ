@@ -1,0 +1,37 @@
+{
+  "drills": [
+    {
+      "id": "passing_wall_rebounder",
+      "name": "Wall Rebounder Passing",
+      "target_metric": "passing_accuracy",
+      "difficulty": "Beginner",
+      "duration": "10 min",
+      "equipment": ["wall", "ball"],
+      "instructions": "Stand 5 m from a wall. Pass the ball at a marked target (tape a 50 cm × 50 cm square). Receive the rebound and repeat. 3 × 20 passes each foot.",
+      "coach_tip": "Plant your foot beside the ball, not behind it. Strike through the centre.",
+      "progression": "Reduce target size to 30 cm × 30 cm as accuracy improves."
+    },
+    {
+      "id": "passing_triangle",
+      "name": "Triangle Passing Circuit",
+      "target_metric": "pass_completion_rate",
+      "difficulty": "Intermediate",
+      "duration": "15 min",
+      "equipment": ["3 cones", "2 balls"],
+      "instructions": "Set up 3 cones in a triangle (8 m apart). Pass and move to the next cone. Maintain one-touch passing rhythm. 5 minutes each direction.",
+      "coach_tip": "Open your body before the ball arrives. Decide where to pass before you receive.",
+      "progression": "Add a defender in the middle."
+    },
+    {
+      "id": "weak_foot_isolation",
+      "name": "Weak Foot Isolation Drill",
+      "target_metric": "weak_foot_ratio",
+      "difficulty": "Beginner",
+      "duration": "10 min",
+      "equipment": ["wall", "ball", "cones"],
+      "instructions": "Using only your weaker foot, pass against a wall from 5 m. 100 passes total. Focus on clean contact, not power.",
+      "coach_tip": "Your weaker foot only becomes stronger through deliberate repetition. 100 reps minimum per session.",
+      "progression": "Increase distance to 8 m. Add moving targets."
+    }
+  ]
+}

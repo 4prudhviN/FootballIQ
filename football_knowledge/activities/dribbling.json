@@ -1,0 +1,28 @@
+{
+  "name": "dribbling",
+  "display_name": "Dribbling",
+  "description": "Running with the ball under close control while navigating opponents.",
+  "key_principles": [
+    "Keep ball within one-two touches of your feet",
+    "Use body feints to unbalance defenders",
+    "Accelerate away after a successful touch",
+    "Keep head up to read space and defenders",
+    "Use both feet equally to be unpredictable"
+  ],
+  "common_metrics": [
+    "dribble_success_rate",
+    "touch_tightness_index",
+    "change_of_direction_count",
+    "average_speed_with_ball",
+    "ball_retention_rate"
+  ],
+  "sub_skills": ["tight_control", "speed_dribbling", "turns", "shielding"],
+  "muscle_groups": ["quadriceps", "hip_flexors", "glutes", "calf", "core"],
+  "typical_errors": [
+    "ball_too_far_from_feet",
+    "head_down_no_awareness",
+    "one_footed_dribbling",
+    "telegraphing_direction",
+    "slow_acceleration_after_touch"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "defending",
+  "display_name": "Defending",
+  "description": "Preventing opponents from scoring through positioning, pressing, and tackling.",
+  "key_principles": [
+    "Stay goal-side of the attacker",
+    "Jockey and delay — don't dive in",
+    "Force attacker onto their weak foot",
+    "Stay on your feet as long as possible",
+    "Communicate with teammates constantly"
+  ],
+  "common_metrics": [
+    "tackle_success_rate",
+    "interceptions",
+    "clearances",
+    "positioning_score",
+    "aerial_duel_win_rate"
+  ],
+  "sub_skills": ["tackling", "marking", "pressing", "intercepting", "aerial_duels"],
+  "muscle_groups": ["quadriceps", "glutes", "hip_abductors", "core", "calf"],
+  "typical_errors": [
+    "diving_in_too_early",
+    "ball_watching",
+    "poor_recovery_run",
+    "wrong_side_of_attacker",
+    "flat_footed_stance"
+  ]
+}

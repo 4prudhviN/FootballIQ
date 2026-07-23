@@ -1,0 +1,74 @@
+{
+  "mistakes": [
+    {
+      "id": "leaning_back_at_contact",
+      "display": "Leaning back at contact",
+      "affects": ["shooting", "passing"],
+      "plain_english": "Your upper body is leaning behind your hips when you strike the ball. This sends shots upward and reduces accuracy.",
+      "cause": "Plant foot placed too far behind the ball, or insufficient core engagement.",
+      "fix": "Position your plant foot beside the ball. Drive your chest forward and down over the ball at contact.",
+      "drill_ref": "shooting_lean_correction",
+      "severity": "high"
+    },
+    {
+      "id": "ball_too_far_from_feet",
+      "display": "Ball too far from feet while dribbling",
+      "affects": ["dribbling"],
+      "plain_english": "The ball is too far in front of you while running with it. Defenders can easily take it.",
+      "cause": "Pushing the ball too hard per touch, or running too fast for skill level.",
+      "fix": "Take smaller, more controlled touches. Keep the ball within 1 touch range at all times.",
+      "drill_ref": "cone_slalom",
+      "severity": "medium"
+    },
+    {
+      "id": "knee_valgus_collapse",
+      "display": "Knee collapsing inward",
+      "affects": ["shooting", "passing", "movement"],
+      "plain_english": "Your knee falls inward when you plant your foot. This reduces power transfer and increases injury risk.",
+      "cause": "Weak hip abductor muscles allowing medial knee drift.",
+      "fix": "Strengthen hip abductors. Consciously push knee over middle toe during all weight-bearing movements.",
+      "drill_ref": "lateral_band_walk",
+      "severity": "high"
+    },
+    {
+      "id": "gait_asymmetry",
+      "display": "Uneven stride length",
+      "affects": ["movement"],
+      "plain_english": "Your left and right running steps are noticeably different. One leg is doing more work, which tires you out faster.",
+      "cause": "Strength imbalance between dominant and non-dominant leg.",
+      "fix": "Unilateral strength and plyometric work to equalise both sides.",
+      "drill_ref": "single_leg_bounds",
+      "severity": "medium"
+    },
+    {
+      "id": "diving_in_too_early",
+      "display": "Diving in too early when defending",
+      "affects": ["defending"],
+      "plain_english": "You are lunging for the ball before the attacker makes a mistake. This leaves you beaten easily.",
+      "cause": "Impatience. Trying to win the ball rather than delaying the attack.",
+      "fix": "Jockey and delay. Wait for the heavy touch or a mistake before committing.",
+      "drill_ref": "jockeying_drill",
+      "severity": "high"
+    },
+    {
+      "id": "one_footed_passing",
+      "display": "Avoiding the weak foot",
+      "affects": ["passing", "dribbling"],
+      "plain_english": "You are always using your stronger foot even when your weaker foot would be easier. This makes you predictable.",
+      "cause": "Lack of confidence in the non-dominant foot due to insufficient practice.",
+      "fix": "Dedicate at least 30% of passing practice to your weaker foot.",
+      "drill_ref": "weak_foot_isolation",
+      "severity": "medium"
+    },
+    {
+      "id": "poor_follow_through",
+      "display": "Stopping the kicking motion at contact",
+      "affects": ["shooting", "passing"],
+      "plain_english": "Your leg stops moving after it hits the ball. This reduces power and accuracy.",
+      "cause": "Nervousness, or focusing too hard on the ball at contact.",
+      "fix": "Mentally commit to kicking through the ball, not at it. Finish with your kicking foot pointing at the target.",
+      "drill_ref": "shooting_power_laces",
+      "severity": "medium"
+    }
+  ]
+}
