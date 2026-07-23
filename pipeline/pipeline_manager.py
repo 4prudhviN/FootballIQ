@@ -33,6 +33,11 @@ from pipeline.frame_extractor import FrameExtractor, ExtractedFrame
 from pipeline.player_detector import PlayerDetector, PlayerDetectionResult
 from pipeline.ball_detector   import BallDetector, BallDetectionResult
 from pipeline.pose_estimator  import PoseEstimator, PoseEstimationResult
+from pipeline.pipeline_context import (
+    PipelineContext, VideoInfo, FrameStore, DetectionResults,
+    ActivityUnderstanding, ActivitySegmentCtx, AnalysisResults,
+    CoachingOutput, FinalReport, BallTrack, PoseLandmarkFrame,
+)
 
 # ── 3. Activity understanding ────────────────────────────────────────────────
 from activity_understanding import (
@@ -486,3 +491,231 @@ class PipelineManager:
             weekly_plan={}, recovery_advice={}, ai_feedback={},
             timings=timings,
         )
+
+    def run_with_context(self, video_path: str, session_id: str = "") -> PipelineContext:
+        """
+        Run the full pipeline and return a populated PipelineContext.
+        Every stage writes its output to ctx — nothing is passed as raw dicts.
+
+        Parameters
+        ----------
+        video_path : str
+        session_id : str — optional, set on the context
+
+        Returns
+        -------
+        PipelineContext — always returns, errors captured in ctx.error
+        """
+        import uuid
+        ctx            = PipelineContext(video_path=video_path)
+        ctx.session_id = session_id or uuid.uuid4().hex[:12]
+        ctx.status     = "running"
+
+        video_ctx: Optional[VideoContext]  = None
+        estimator: Optional[PoseEstimator] = None
+
+        try:
+            # ── Stage 1: Video load ──────────────────────────────────────────
+            video_ctx = VideoLoader().load(video_path)
+            ctx.video = VideoInfo(
+                video_path  = video_path,
+                fps         = video_ctx.fps or DEFAULT_FPS,
+                duration_s  = video_ctx.duration_s,
+                width       = video_ctx.width,
+                height      = video_ctx.height,
+                frame_count = video_ctx.frame_count,
+            )
+            ctx.log_stage("video_load", f"{ctx.video.resolution_label} @ {ctx.video.fps:.1f}fps")
+
+            # ── Stage 2a: Frame extraction ───────────────────────────────────
+            frames = FrameExtractor(stride=self.frame_stride).extract_all(video_ctx)
+            ctx.frames.original_frames = frames
+            ctx.log_stage("frame_extract", f"{len(frames)} frames")
+
+            # ── Stage 2b: Player detection ───────────────────────────────────
+            player_result = PlayerDetector(threshold=self.player_threshold).detect(frames)
+            ctx.detections.player_confidence = player_result.confidence
+            ctx.log_stage("player_detect", f"conf={player_result.confidence:.1%} passed={player_result.passed}")
+
+            if not player_result.passed:
+                ctx.mark_failed(
+                    f"No player detected (confidence {player_result.confidence:.1%}). "
+                    "Ensure the player is fully visible in the frame."
+                )
+                return ctx
+
+            # ── Stage 2c: Ball detection ─────────────────────────────────────
+            ball_result = BallDetector().detect(frames)
+            ctx.detections.ball_confidence = ball_result.confidence
+            ctx.detections.ball_tracks = [
+                BallTrack(
+                    frame_index = d.frame_index,
+                    timestamp_s = d.timestamp_s,
+                    center_x    = d.center_x,
+                    center_y    = d.center_y,
+                    radius      = d.radius,
+                    confidence  = d.confidence,
+                )
+                for d in ball_result.detections
+            ]
+            ctx.log_stage("ball_detect", f"conf={ball_result.confidence:.1%} found={ball_result.ball_detected}")
+
+            # ── Stage 2d: Pose estimation ────────────────────────────────────
+            estimator   = PoseEstimator(model_complexity=self.pose_model_complexity)
+            pose_result = estimator.estimate(frames)
+
+            ctx.detections.pose_landmarks = [
+                PoseLandmarkFrame(
+                    frame_index = fp.frame_index,
+                    timestamp_s = fp.timestamp_s,
+                    detected    = fp.detected,
+                    landmarks   = {k: v for k, v in (fp.landmarks or {}).items()},
+                    torso_lean  = fp.torso_lean_deg if hasattr(fp, "torso_lean_deg") else fp.torso_lean,
+                )
+                for fp in pose_result.frame_poses
+            ]
+            ctx.detections.warnings            = pose_result.warnings
+            ctx.detections.avg_torso_lean      = pose_result.avg_torso_lean
+            ctx.detections.avg_knee_dev        = pose_result.avg_knee_dev
+            ctx.detections.gait_asymmetry      = pose_result.gait_asymmetry
+            ctx.detections.pose_detected_frames = pose_result.detected_frames
+            ctx.detections.pose_total_frames   = pose_result.total_frames
+            ctx.log_stage("pose_estimate", f"{pose_result.detected_frames}/{pose_result.total_frames} frames  warnings={pose_result.warnings}")
+
+            # ── Stage 3: Activity understanding ──────────────────────────────
+            raw_dets = AUActivityDetector().detect(pose_result, ball_result)
+            raw_dets = self._cf.filter_raw(raw_dets)
+            raw_dets = self._cf.deduplicate_frame(raw_dets)
+            classified = ActivityClassifier.classify(raw_dets)
+            classified = self._cf.filter_classified(classified)
+            classified = self._cf.normalise(classified)
+            timeline   = SequenceAnalyzer.analyze(raw_dets, fps=ctx.video.fps)
+
+            activities = [c.action for c in classified] if classified else ["passing"]
+            ctx.activity.detected_activities = activities
+            ctx.activity.confidence_scores   = {c.action: c.combined_score for c in classified}
+            ctx.activity.primary_activity    = activities[0] if activities else None
+            ctx.activity.raw_detection_count = len(raw_dets)
+            ctx.activity.timeline = [
+                ActivitySegmentCtx(
+                    action       = seg.action,
+                    start_time_s = seg.start_time_s,
+                    end_time_s   = seg.end_time_s,
+                    duration_s   = seg.duration_s,
+                    confidence   = seg.confidence,
+                    label        = seg.label,
+                )
+                for seg in timeline
+            ]
+            ctx.log_stage("activity_understand", f"activities={activities} segments={len(timeline)}")
+
+            # ── Stage 4–5: Analyzer selection + metrics ───────────────────────
+            action_metrics = self._registry.run_for_activities(
+                activities, frames, pose_result, ball_result
+            )
+            torso_lean     = pose_result.avg_torso_lean  or 8.0
+            knee_stability = max(0.0, 100.0 - (pose_result.avg_knee_dev  or 0.0) * 100)
+            gait_symmetry  = max(0.0, 100.0 - (pose_result.gait_asymmetry or 0.0) * 100)
+
+            ctx.analysis.metrics = {
+                "byAction":      {a: am.to_display_dict() for a, am in action_metrics.items()},
+                "torsoLean":     round(abs(torso_lean), 1),
+                "kneeStability": round(knee_stability, 1),
+                "gaitSymmetry":  round(gait_symmetry, 1),
+                "warnings":      pose_result.warnings,
+            }
+            ctx.log_stage("metrics", f"torso={torso_lean:.1f}° knee={knee_stability:.0f} gait={gait_symmetry:.0f}")
+
+            # ── Stage 6: Coach engine ─────────────────────────────────────────
+            raw_metrics = {
+                "torso_lean":     abs(torso_lean),
+                "knee_dev":       1.0 - knee_stability / 100.0,
+                "gait_asymmetry": 1.0 - gait_symmetry  / 100.0,
+            }
+            skill_profile   = CoachSkillClassifier().classify(raw_metrics)
+            primary         = activities[0] if activities else "general"
+            feedback_report = CoachFeedbackEngine(adapter=self._terminology).generate(
+                skill_profile, activity=primary, metrics=raw_metrics
+            )
+            drills_list = DrillRecommender(adapter=self._terminology).recommend(
+                skill_profile, activity=primary
+            )
+
+            ctx.coaching.player_level  = skill_profile.level
+            ctx.analysis.strengths     = skill_profile.strengths
+            ctx.analysis.weaknesses    = skill_profile.weaknesses
+            ctx.analysis.metric_scores = {ms.metric: ms.score for ms in skill_profile.metric_scores}
+            ctx.analysis.overall_score = skill_profile.overall_score
+            ctx.coaching.coach_tips    = [i.adapted_coach_tip for i in feedback_report.items]
+            ctx.coaching.recommendations = [i.plain_observation for i in feedback_report.items]
+            ctx.coaching.drills = [
+                {
+                    "name":         d.name,
+                    "targetMetric": d.target_metric,
+                    "instructions": d.instructions,
+                    "coachTip":     d.coach_tip,
+                    "duration":     d.duration,
+                    "difficulty":   d.difficulty,
+                    "priority":     d.priority,
+                }
+                for d in drills_list
+            ]
+            ctx.log_stage("coach_engine", f"level={skill_profile.level} issues={len(feedback_report.items)}")
+
+            # ── Stage 7: Recommendation engine ────────────────────────────────
+            focus_areas   = PrioritySelector().select(skill_profile)
+            training_plan = TrainingPlanGenerator().generate(skill_profile.level, focus_areas, drills_list)
+            weekly_plan   = WeeklyPlanGenerator().generate(training_plan)
+            recovery      = RecoveryAdvisor().advise(raw_metrics, player_level=skill_profile.level)
+
+            ctx.coaching.focus_this_week = [a.label for a in focus_areas]
+            ctx.coaching.training_plan   = training_plan.to_dict()
+            ctx.coaching.weekly_plan     = weekly_plan.to_dict()
+            ctx.coaching.recovery_advice = recovery.to_dict()
+            ctx.log_stage("recommendation", f"focus={ctx.coaching.focus_this_week[:2]} rest={recovery.rest_day_recommended}")
+
+            # ── Stage 8: LLM rewrite ───────────────────────────────────────────
+            structured = self._build_structured_coaching(
+                feedback_report, focus_areas, drills_list, recovery, skill_profile.level
+            )
+            ctx.report.report = structured
+
+            if self._ai_engine and self.use_ai:
+                try:
+                    ai_rep = self._ai_engine.explain(
+                        detected_activities = activities,
+                        player_level        = skill_profile.level,
+                        torso_lean          = abs(torso_lean),
+                        knee_stability      = knee_stability,
+                        gait_symmetry       = gait_symmetry,
+                        warnings            = pose_result.warnings,
+                        by_action           = {a: am.to_display_dict() for a, am in action_metrics.items()},
+                        video_duration_s    = ctx.video.duration_s,
+                    )
+                    if ai_rep.summary:
+                        ctx.report.report["summary"] = ai_rep.summary
+                    if ai_rep.coach_tip:
+                        ctx.report.report["motivationalTip"] = ai_rep.coach_tip
+                    ctx.log_stage("llm_rewrite", f"provider={ai_rep.provider}")
+                except Exception as ai_exc:
+                    log.warning("LLM rewrite failed (non-fatal): %s", ai_exc)
+                    ctx.log_stage("llm_rewrite", "skipped — using deterministic output")
+
+            # ── Stage 9: Finalise ─────────────────────────────────────────────
+            ctx.report.session_id  = ctx.session_id
+            ctx.report.video_url   = f"/api/video/{ctx.session_id}/analyzed.mp4"
+            ctx.report.created_at  = __import__("datetime").datetime.utcnow().isoformat() + "Z"
+            ctx.report.output_json = ctx.to_api_response()
+            ctx.status             = "complete"
+            ctx.log_stage("complete", f"total_stages=9 level={skill_profile.level}")
+
+        except Exception as exc:
+            log.error("Pipeline (context) failed: %s", exc, exc_info=True)
+            ctx.mark_failed(str(exc))
+        finally:
+            if estimator:
+                estimator.close()
+            if video_ctx:
+                video_ctx.release()
+
+        return ctx
