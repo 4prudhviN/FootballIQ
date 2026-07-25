@@ -2,28 +2,22 @@
 """
 Prompt Builder
 ==============
-Builds the LLM prompt from structured coaching data.
+Builds the LLM prompt from structured football knowledge.
 
-The LLM's ONLY job is to rewrite structured findings into natural language.
-It must NOT invent new football advice — all coaching points come from the
-FeedbackEngine and knowledge base.
+Instead of sending raw metrics, sends structured coaching data:
 
-Instead of sending:
-  "Passing Accuracy: 61%"
+  Player Level      : Developing
+  Detected Activities: Passing
+  Metrics           : Passing Accuracy 82%
+  Detected Mistakes : Body leaning, Plant foot position
+  Recommended Drill : Wall Passing
+  Tone              : Explain like a coach to a beginner.
 
-We send:
-  "The player completed 19 out of 31 passes successfully.
-   Root cause: Body leaning backward before striking.
-   Correction: Keep chest facing the target.
-   Drill: Wall rebounder drill."
-
-The LLM rewrites this into:
-  "You completed 19 out of 31 passes successfully. Most missed passes
-   happened because your body leaned backward before striking the ball.
-   Keeping your chest facing the target will improve accuracy."
+The LLM receives structured knowledge and rewrites it into
+natural language. It does NOT invent football advice.
 
 Pipeline position:
-  FeedbackReport + Metrics → PromptBuilder → LLM → natural language
+  SessionSummary + Recommendations → PromptBuilder → LLM
 """
 
 from __future__ import annotations
@@ -40,7 +34,7 @@ from ai.prompt_templates.template_loader import TemplateLoader
 
 @dataclass
 class PromptContext:
-    """All structured data needed to build the rewrite prompt."""
+    """All structured data the LLM needs to rewrite."""
     player_level:         str
     detected_activities:  List[str]
     torso_lean:           float
@@ -49,155 +43,175 @@ class PromptContext:
     warnings:             List[str]
     by_action:            Dict[str, Dict[str, str]]
 
-    # Structured coaching findings from FeedbackEngine (not raw metrics)
-    coaching_issues:      List[Dict[str, Any]] = field(default_factory=list)
-    # Each: {metric, value, root_cause, observation, correction, drill, coach_tip}
+    # Structured coaching findings (from FeedbackEngine / MistakeDetector)
+    coaching_issues:     List[Dict[str, Any]] = field(default_factory=list)
+    # Each: {metric, value, root_cause, correction, drill, coach_tip}
 
-    positive_findings:    List[str]            = field(default_factory=list)
-    session_id:           Optional[str]        = None
-    video_duration_s:     Optional[float]      = None
+    positive_findings:   List[str]            = field(default_factory=list)
+    mistake_causes:      List[str]            = field(default_factory=list)
+    top_drill:           Optional[str]        = None
+    top_coach_tip:       Optional[str]        = None
+    session_id:          Optional[str]        = None
+    video_duration_s:    Optional[float]      = None
 
 
 # ---------------------------------------------------------------------------
-# Prompt Builder
+# Tone instructions per level
 # ---------------------------------------------------------------------------
 
-_SYSTEM_INSTRUCTION = """\
-You are a football performance analyst rewriting structured coaching data into natural language.
+_TONE: Dict[str, str] = {
+    "Beginner":     "Explain like a coach talking to a beginner. Use plain everyday language. No jargon. Short sentences. Be encouraging.",
+    "Developing":   "Explain like a coach to a developing player. Simple language with some football terms explained. Be direct and positive.",
+    "Intermediate": "Speak as a coach to an intermediate player. Use standard football terminology. Be clear and specific.",
+    "Advanced":     "Speak as a technical analyst to an advanced player. Use correct football terminology. Be precise and concise.",
+    "Elite":        "Speak as a performance analyst to an elite player. Use technical language. Focus on marginal gains. Be data-driven.",
+}
 
-RULES — you must follow these exactly:
-1. You are a TRANSLATOR only. Every coaching point you write must come from the data provided.
-2. Do NOT invent new coaching advice, drills, or observations.
-3. Do NOT use technical jargon — write in plain English the player can understand.
-4. Reference actual numbers from the data (e.g. "19 out of 31 passes").
-5. Be direct and specific. No filler phrases.
-6. Tone: supportive but honest. Like a coach who respects the player's time.\
+_SYSTEM = """\
+You are FootballIQ Coach — rewriting structured football analysis into natural language.
+
+STRICT RULES:
+1. Every coaching point you write MUST come from the structured data provided below.
+2. Do NOT invent new football advice, drills, or observations.
+3. Reference actual numbers where given (e.g. "82% passing accuracy").
+4. Write in the tone specified — match it exactly.
+5. Respond with valid JSON only — no text outside the JSON.\
 """
 
 _OUTPUT_FORMAT = """\
 Respond with valid JSON only:
 {
-  "summary":         "2-3 sentences. What happened in this session overall, referencing actual numbers.",
-  "strengths":       ["one sentence per strength, referencing a specific metric value"],
-  "weaknesses":      ["one sentence per issue, naming the root cause and its effect on performance"],
-  "coachingTips":    ["one actionable tip per issue, written as a direct instruction"],
-  "motivationalTip": "one sentence closing message appropriate for the player's level"
-}
-Do not include any text outside the JSON object.\
+  "summary":         "2-3 sentences. Reference actual numbers. What happened this session.",
+  "strengths":       ["one sentence per strength, referencing a specific metric or observation"],
+  "weaknesses":      ["one sentence per issue, naming the root cause and its effect on play"],
+  "coachingTips":    ["one actionable instruction per issue, written directly to the player"],
+  "motivationalTip": "one closing sentence, level-appropriate, encouraging"
+}\
 """
 
 
 class PromptBuilder:
     """
-    Builds LLM prompts from structured coaching data.
-
-    The prompt tells the LLM exactly what to rewrite and in what format.
-    The LLM adds no new football knowledge — only natural language.
+    Builds the LLM prompt from structured football knowledge.
+    The prompt tells the LLM exactly what to rewrite and in what tone.
     """
 
     def __init__(self) -> None:
         self._templates = TemplateLoader()
 
     def build(self, ctx: PromptContext) -> str:
-        """
-        Build the full rewrite prompt from structured coaching context.
-
-        Parameters
-        ----------
-        ctx : PromptContext
-
-        Returns
-        -------
-        str — complete prompt ready to send to LLM
-        """
+        """Build the full structured prompt."""
+        level = ctx.player_level
+        tone  = _TONE.get(level, _TONE["Beginner"])
         sections: List[str] = []
 
-        sections.append(_SYSTEM_INSTRUCTION)
+        sections.append(_SYSTEM)
         sections.append("")
 
-        # ── Session context ────────────────────────────────────────────────
+        # ── Structured coaching data ───────────────────────────────────────
         sections.append("═" * 56)
-        sections.append("SESSION DATA TO REWRITE")
+        sections.append("STRUCTURED FOOTBALL KNOWLEDGE TO REWRITE")
         sections.append("═" * 56)
-        sections.append(f"Player Level : {ctx.player_level}")
-        sections.append(f"Activities   : {', '.join(ctx.detected_activities) or 'General movement'}")
+
+        sections.append(f"Player Level       : {level}")
+        sections.append(f"Detected Activities: {', '.join(ctx.detected_activities) or 'General movement'}")
         if ctx.video_duration_s:
-            sections.append(f"Duration     : {ctx.video_duration_s:.0f} seconds")
+            sections.append(f"Session Duration   : {ctx.video_duration_s:.0f} seconds")
         sections.append("")
 
-        # ── Per-action metrics (actual numbers) ────────────────────────────
+        # ── Metrics (actual numbers) ───────────────────────────────────────
         if ctx.by_action:
-            sections.append("── Measured Metrics ──")
+            sections.append("── Metrics ──")
             for activity, metrics in ctx.by_action.items():
                 sections.append(f"  {activity.capitalize()}:")
                 for label, value in metrics.items():
-                    sections.append(f"    • {label}: {value}")
+                    sections.append(f"    {label}: {value}")
             sections.append("")
 
-        # ── Biomechanical readings ─────────────────────────────────────────
         sections.append("── Biomechanical Readings ──")
-        sections.append(f"  • Torso lean at contact : {ctx.torso_lean:.1f}°  "
-                        f"({'poor — lean back' if ctx.torso_lean > 15 else 'good'})")
-        sections.append(f"  • Knee stability score  : {ctx.knee_stability:.0f}/100")
-        sections.append(f"  • Gait symmetry score   : {ctx.gait_symmetry:.0f}/100")
+        sections.append(f"  Torso lean at contact : {ctx.torso_lean:.1f}°")
+        sections.append(f"  Knee stability        : {ctx.knee_stability:.0f}/100")
+        sections.append(f"  Gait symmetry         : {ctx.gait_symmetry:.0f}/100")
         sections.append("")
 
-        # ── Structured coaching issues (from FeedbackEngine) ──────────────
+        # ── Detected mistakes ──────────────────────────────────────────────
+        if ctx.mistake_causes:
+            sections.append("── Detected Mistakes ──")
+            for cause in ctx.mistake_causes:
+                sections.append(f"  • {cause}")
+            sections.append("")
+
+        # ── Coaching issues with corrections ──────────────────────────────
         if ctx.coaching_issues:
-            sections.append("── Coaching Issues Found (rewrite each into natural language) ──")
+            sections.append("── Coaching Issues (rewrite each into natural language) ──")
             for i, issue in enumerate(ctx.coaching_issues, 1):
                 sections.append(f"  Issue {i}: {issue.get('metric', '').replace('_', ' ').title()}")
-                sections.append(f"    Value      : {issue.get('value', '')}")
-                sections.append(f"    Root cause : {issue.get('root_cause', '')}")
-                sections.append(f"    Observation: {issue.get('observation', '')}")
-                sections.append(f"    Correction : {issue.get('correction', '')}")
-                sections.append(f"    Drill      : {issue.get('drill', '')}")
-                sections.append(f"    Coach tip  : {issue.get('coach_tip', '')}")
+                sections.append(f"    Value     : {issue.get('value', '')}")
+                sections.append(f"    Root cause: {issue.get('root_cause', '')}")
+                sections.append(f"    Correction: {issue.get('correction', '')}")
+                if issue.get("drill"):
+                    sections.append(f"    Drill     : {issue.get('drill', '')}")
+                if issue.get("coach_tip"):
+                    sections.append(f"    Coach tip : {issue.get('coach_tip', '')}")
                 sections.append("")
 
-        # ── Positive findings ──────────────────────────────────────────────
+        # ── Recommended drill ──────────────────────────────────────────────
+        if ctx.top_drill:
+            sections.append("── Recommended Drill ──")
+            sections.append(f"  {ctx.top_drill}")
+            sections.append("")
+
+        # ── Top coach tip ──────────────────────────────────────────────────
+        if ctx.top_coach_tip:
+            sections.append("── Key Coach Tip ──")
+            sections.append(f"  {ctx.top_coach_tip}")
+            sections.append("")
+
+        # ── What the player did well ───────────────────────────────────────
         if ctx.positive_findings:
             sections.append("── What the Player Did Well ──")
             for p in ctx.positive_findings:
                 sections.append(f"  ✓ {p}")
             sections.append("")
 
-        # ── Rewrite instructions ───────────────────────────────────────────
+        # ── Tone instruction ───────────────────────────────────────────────
         sections.append("═" * 56)
-        sections.append("YOUR TASK: REWRITE THE ABOVE INTO NATURAL LANGUAGE")
+        sections.append("TONE INSTRUCTION")
         sections.append("═" * 56)
-        sections.append(
-            f"Rewrite the session data above into clear, plain English for a "
-            f"{ctx.player_level} football player. "
-            "Use the actual numbers. Reference the root causes. "
-            "Do not add any coaching advice that is not in the data above."
-        )
+        sections.append(tone)
         sections.append("")
+
+        # ── Output format ──────────────────────────────────────────────────
+        sections.append("═" * 56)
+        sections.append("OUTPUT FORMAT")
+        sections.append("═" * 56)
         sections.append(_OUTPUT_FORMAT)
 
         return "\n".join(sections)
 
     def build_quick_tip(self, ctx: PromptContext) -> str:
-        """
-        Build a short rewrite prompt for a single coaching tip.
-        Used for quick feedback without a full report.
-        """
-        if not ctx.coaching_issues:
+        """Build a short prompt for a single coaching tip."""
+        tone  = _TONE.get(ctx.player_level, _TONE["Beginner"])
+        issue = ctx.coaching_issues[0] if ctx.coaching_issues else None
+
+        if not issue:
             return (
-                f"{_SYSTEM_INSTRUCTION}\n\n"
-                f"Player: {ctx.player_level} | "
+                f"{_SYSTEM}\n\n"
+                f"Player: {ctx.player_level}\n"
                 f"Activities: {', '.join(ctx.detected_activities)}\n\n"
-                f"Rewrite this into one plain English sentence: "
-                f"'Good session overall with no major issues detected.'"
+                f"Tone: {tone}\n\n"
+                f"Rewrite this into ONE plain sentence: 'Good session overall — keep training consistently.'"
             )
 
-        issue = ctx.coaching_issues[0]
         return (
-            f"{_SYSTEM_INSTRUCTION}\n\n"
-            f"Player: {ctx.player_level}\n"
-            f"Issue: {issue.get('metric')} = {issue.get('value')}\n"
-            f"Root cause: {issue.get('root_cause')}\n"
-            f"Correction: {issue.get('correction')}\n\n"
-            f"Rewrite the above into ONE plain English sentence (max 30 words). "
-            f"Reference the actual value. Use 'you' and 'your'. No jargon."
+            f"{_SYSTEM}\n\n"
+            f"Player Level      : {ctx.player_level}\n"
+            f"Detected Activity : {ctx.detected_activities[0] if ctx.detected_activities else 'general'}\n"
+            f"Issue             : {issue.get('metric', '').replace('_', ' ').title()} = {issue.get('value', '')}\n"
+            f"Root Cause        : {issue.get('root_cause', '')}\n"
+            f"Correction        : {issue.get('correction', '')}\n"
+            f"Recommended Drill : {ctx.top_drill or issue.get('drill', 'N/A')}\n\n"
+            f"Tone: {tone}\n\n"
+            f"Rewrite the above into ONE plain sentence (max 30 words). "
+            f"Reference the actual value. Speak directly to the player."
         )
