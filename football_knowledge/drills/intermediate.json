@@ -1,0 +1,61 @@
+{
+  "level": "Intermediate",
+  "description": "Skill-refinement drills for players with solid fundamentals. Introduce pressure, speed, and weak-foot challenges.",
+  "drills": [
+    {
+      "id": "int_passing_triangle",
+      "name": "Triangle Passing Circuit",
+      "activity": "passing",
+      "target_metric": "accuracy",
+      "duration": "15 min",
+      "equipment": ["3 cones", "2 balls", "2 partners"],
+      "instructions": "Set 3 cones 8m apart in a triangle. Pass and move to the next cone. One-touch rhythm. 5 minutes each direction. Then add: receive on back foot only.",
+      "coach_tip": "Decide where to pass before the ball arrives. Open your body on the receive.",
+      "success_criteria": "Maintain one-touch rhythm for 2 consecutive minutes."
+    },
+    {
+      "id": "int_dribbling_1v1",
+      "name": "1v1 Dribbling Box",
+      "activity": "dribbling",
+      "target_metric": "dribble_success_rate",
+      "duration": "15 min",
+      "equipment": ["4 cones", "ball", "partner"],
+      "instructions": "5m x 5m box. Attacker dribbles to touch the far cone. Defender applies pressure. 2-minute rounds, swap. Progress: reduce box to 4m x 4m.",
+      "coach_tip": "Use a feint before accelerating. Commit to your move.",
+      "success_criteria": "Complete 6 of 10 dribble attempts against a defender."
+    },
+    {
+      "id": "int_shooting_moving",
+      "name": "Shoot After Receive",
+      "activity": "shooting",
+      "target_metric": "accuracy",
+      "duration": "15 min",
+      "equipment": ["goal", "ball", "cones", "partner"],
+      "instructions": "Partner plays ball to your feet from 5m out. Control and shoot in 2 touches. 15 attempts each foot. Add: receive from left, shoot right and vice versa.",
+      "coach_tip": "Set your body position before the ball arrives — don't adjust after.",
+      "success_criteria": "10 of 15 shots on target from both sides."
+    },
+    {
+      "id": "int_movement_change_dir",
+      "name": "Change of Direction Speed Circuit",
+      "activity": "movement",
+      "target_metric": "acceleration",
+      "duration": "12 min",
+      "equipment": ["4 cones"],
+      "instructions": "Set cones in a 10m x 5m rectangle. Sprint long side, shuffle short side. 8 reps at 80% effort. Progress: add a reaction start (partner clap).",
+      "coach_tip": "Drive your arms — faster arms means faster feet.",
+      "success_criteria": "Consistent time across all 8 reps (< 10% variance)."
+    },
+    {
+      "id": "int_weak_foot_passing",
+      "name": "Weak Foot Only Passing",
+      "activity": "passing",
+      "target_metric": "weak_foot_ratio",
+      "duration": "10 min",
+      "equipment": ["wall or partner", "ball"],
+      "instructions": "Using only your weaker foot: pass against wall from 6m. 100 passes total. Focus on clean contact, not power. Add: vary distance from 5–10m.",
+      "coach_tip": "Your weaker foot only improves through dedicated volume. 100 reps minimum.",
+      "success_criteria": "70% of passes are accurate and controlled."
+    }
+  ]
+}

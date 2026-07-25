@@ -1,0 +1,61 @@
+{
+  "level": "Beginner",
+  "description": "Foundational drills for players just starting out. Focus on one skill at a time, slow repetition, and building motor patterns.",
+  "drills": [
+    {
+      "id": "beg_passing_wall",
+      "name": "Wall Pass Repetition",
+      "activity": "passing",
+      "target_metric": "accuracy",
+      "duration": "10 min",
+      "equipment": ["wall", "ball"],
+      "instructions": "Stand 5m from a wall. Pass the ball at a marked 50cm square target. Receive the rebound and repeat. 3 sets of 20 passes each foot.",
+      "coach_tip": "Plant your foot beside the ball, pointing toward the target.",
+      "success_criteria": "10 consecutive accurate passes to the target."
+    },
+    {
+      "id": "beg_dribbling_cones",
+      "name": "Straight Cone Dribble",
+      "activity": "dribbling",
+      "target_metric": "touch_tightness",
+      "duration": "10 min",
+      "equipment": ["6 cones", "ball"],
+      "instructions": "Set 6 cones in a straight line, 1.5m apart. Dribble through using only your right foot. Then only your left. 5 runs each foot.",
+      "coach_tip": "Keep the ball within one touch of your foot at all times.",
+      "success_criteria": "Complete the course without losing the ball."
+    },
+    {
+      "id": "beg_shooting_stationary",
+      "name": "Stationary Shot Technique",
+      "activity": "shooting",
+      "target_metric": "body_alignment",
+      "duration": "10 min",
+      "equipment": ["goal or wall", "ball", "cones"],
+      "instructions": "Place ball on the ground. Take a 3-step approach and strike with laces. Focus on planting foot beside the ball. 20 strikes each foot.",
+      "coach_tip": "Chin down, chest over the ball at the moment of contact.",
+      "success_criteria": "8 out of 10 shots on target."
+    },
+    {
+      "id": "beg_balance_single_leg",
+      "name": "Single-Leg Balance Hold",
+      "activity": "movement",
+      "target_metric": "balance",
+      "duration": "8 min",
+      "equipment": ["none"],
+      "instructions": "Stand on one leg for 30 seconds. Switch. Progress to eyes closed when comfortable. 3 sets each leg.",
+      "coach_tip": "Stay on the ball of your foot, not your heel.",
+      "success_criteria": "30 seconds on each leg without losing balance."
+    },
+    {
+      "id": "beg_receiving_chest",
+      "name": "Chest Control from Toss",
+      "activity": "receiving",
+      "target_metric": "first_touch",
+      "duration": "10 min",
+      "equipment": ["ball", "partner"],
+      "instructions": "Partner tosses ball from 3m. Control with chest and let it drop to feet. 3 sets of 15 touches.",
+      "coach_tip": "Cushion the ball — let it come to you, don't push into it.",
+      "success_criteria": "Ball stays within 0.5m of your feet after control."
+    }
+  ]
+}

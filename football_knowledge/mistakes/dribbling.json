@@ -1,0 +1,60 @@
+{
+  "activity": "dribbling",
+  "mistakes": [
+    {
+      "id": "drib_too_far",
+      "name": "Ball too far from feet",
+      "metric": "touch_tightness",
+      "threshold": "touch_tightness > 0.12",
+      "plain_english": "The ball is too far in front of you while running with it. Any defender can easily intercept it.",
+      "root_cause": "Pushing the ball too hard per touch, or running faster than your ball control allows.",
+      "correction": "Take smaller, more controlled touches. Keep the ball within one touch range at all times.",
+      "drill_ref": "beg_dribbling_cones",
+      "severity": "high"
+    },
+    {
+      "id": "drib_head_down",
+      "name": "Head down while dribbling",
+      "metric": "dribble_success_rate",
+      "threshold": "dribble_success_rate < 50%",
+      "plain_english": "You are watching the ball while dribbling instead of looking up to read the game. You can't see defenders coming.",
+      "root_cause": "Insufficient touch-feel — not confident enough to dribble without watching the ball.",
+      "correction": "Practise dribbling to a cone while focusing your eyes on a fixed point ahead. Force yourself to feel the ball.",
+      "drill_ref": "int_dribbling_1v1",
+      "severity": "high"
+    },
+    {
+      "id": "drib_predictable",
+      "name": "Always going the same direction",
+      "metric": "dribble_success_rate",
+      "threshold": "dribble_success_rate < 60%",
+      "plain_english": "You always cut to your stronger foot. Defenders know what you will do before you do it.",
+      "root_cause": "Over-reliance on dominant foot creates a pattern defenders can read.",
+      "correction": "Practise moves in both directions equally. In training, force yourself to go left when your instinct says right.",
+      "drill_ref": "int_dribbling_1v1",
+      "severity": "medium"
+    },
+    {
+      "id": "drib_no_feint",
+      "name": "Dribbling without feinting",
+      "metric": "dribble_success_rate",
+      "threshold": "dribble_success_rate < 55%",
+      "plain_english": "You run directly at defenders without body feints. They can easily time their tackle.",
+      "root_cause": "Not practising deceptive movements — body feints, shoulder drops, or step-overs.",
+      "correction": "Before accelerating past a defender, use one feint to shift their weight. Then go.",
+      "drill_ref": "int_dribbling_1v1",
+      "severity": "medium"
+    },
+    {
+      "id": "drib_slow_after_touch",
+      "name": "Slow acceleration after touch",
+      "metric": "average_speed",
+      "threshold": "average_speed < 15",
+      "plain_english": "After a good touch, you don't accelerate quickly enough to beat the defender.",
+      "root_cause": "Lack of explosive first step — waiting too long after the touch to accelerate.",
+      "correction": "The touch and the sprint must happen in one motion. Push the ball with your touch and go immediately.",
+      "drill_ref": "adv_dribbling_overspeed",
+      "severity": "medium"
+    }
+  ]
+}

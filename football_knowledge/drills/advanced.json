@@ -1,0 +1,61 @@
+{
+  "level": "Advanced",
+  "description": "High-intensity, match-speed drills for technically refined players. Focus on marginal gains under full pressure.",
+  "drills": [
+    {
+      "id": "adv_passing_rondo",
+      "name": "High-Speed Rondo (6v2)",
+      "activity": "passing",
+      "target_metric": "accuracy",
+      "duration": "20 min",
+      "equipment": ["cones", "ball", "7 players"],
+      "instructions": "6 players in 8m circle, 2 defenders inside. Keep possession one-touch. Rotate defenders every 2 minutes. Progress: reduce circle to 6m.",
+      "coach_tip": "Scan before you receive. Play away from pressure before it arrives.",
+      "success_criteria": "Maintain possession for 90 seconds without losing the ball."
+    },
+    {
+      "id": "adv_shooting_pressure",
+      "name": "Shooting Under Full Pressure",
+      "activity": "shooting",
+      "target_metric": "accuracy",
+      "duration": "20 min",
+      "equipment": ["goal", "balls", "defender", "cones"],
+      "instructions": "Receive pass with defender closing from behind. First-time or two-touch shot. Defender applies full pressure. 20 attempts each foot. Log hit rate.",
+      "coach_tip": "Placement beats power at this level. Choose corner early and commit.",
+      "success_criteria": "12 of 20 shots on target under full pressure."
+    },
+    {
+      "id": "adv_dribbling_overspeed",
+      "name": "Overspeed Dribble Sprint",
+      "activity": "dribbling",
+      "target_metric": "average_speed",
+      "duration": "15 min",
+      "equipment": ["20m space", "ball", "light resistance band"],
+      "instructions": "Attach resistance band. Dribble 20m at full speed against resistance. Remove band and repeat — body feels accelerated. 6 reps, full recovery between.",
+      "coach_tip": "Push the ball further ahead than feels comfortable. Trust your pace to recover it.",
+      "success_criteria": "Maintain ball control through all 6 reps without loss."
+    },
+    {
+      "id": "adv_movement_fatigue",
+      "name": "Technical Quality Under Fatigue",
+      "activity": "movement",
+      "target_metric": "body_alignment",
+      "duration": "15 min",
+      "equipment": ["cones", "ball"],
+      "instructions": "Complete a high-intensity sprint circuit (4 x 30m at 95%). Immediately perform 10 technical actions (passes, controls, turns). Video and review. Repeat 3 times.",
+      "coach_tip": "Elite consistency means your mechanics survive fatigue. This drill proves it.",
+      "success_criteria": "Technical quality (rated 1-10) drops by less than 1 point after sprints."
+    },
+    {
+      "id": "adv_scanning_rondo",
+      "name": "Pre-Scan Rondo",
+      "activity": "passing",
+      "target_metric": "passing_consistency",
+      "duration": "20 min",
+      "equipment": ["cones", "ball", "5 players"],
+      "instructions": "4v1 in 6m box. Rule: player must look up (scan) at least twice before receiving. If they don't scan, pass doesn't count. Rotate defender every 90 sec.",
+      "coach_tip": "The best players make decisions before the ball arrives. Scanning is non-negotiable.",
+      "success_criteria": "Scan rate > 80% of all receives."
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "activity": "passing",
+  "mistakes": [
+    {
+      "id": "pass_lean_back",
+      "name": "Leaning back at contact",
+      "metric": "body_alignment",
+      "threshold": "body_alignment = Poor",
+      "plain_english": "Your upper body is leaning behind your hips when you strike the ball. This sends passes upward and reduces accuracy.",
+      "root_cause": "Plant foot is behind the ball instead of beside it.",
+      "correction": "Move your plant foot so it lands beside the ball, not behind it. Drive your chest forward at contact.",
+      "drill_ref": "beg_passing_wall",
+      "severity": "high"
+    },
+    {
+      "id": "pass_wrong_foot",
+      "name": "Avoiding the weaker foot",
+      "metric": "weak_foot_ratio",
+      "threshold": "weak_foot_ratio < 20%",
+      "plain_english": "You are always using your stronger foot even when your weaker foot would be easier. This makes your play predictable.",
+      "root_cause": "Insufficient weak-foot practice creates a confidence gap.",
+      "correction": "Dedicate 30% of all passing practice to your weaker foot.",
+      "drill_ref": "int_weak_foot_passing",
+      "severity": "medium"
+    },
+    {
+      "id": "pass_no_follow_through",
+      "name": "Stopping the kicking motion at contact",
+      "metric": "accuracy",
+      "threshold": "accuracy < 65%",
+      "plain_english": "Your leg stops moving after it hits the ball. This causes the ball to deviate from your intended target.",
+      "root_cause": "Tension in the kicking leg reduces follow-through.",
+      "correction": "Mentally commit to kicking through the ball. Finish with your kicking foot pointing at the target.",
+      "drill_ref": "beg_passing_wall",
+      "severity": "medium"
+    },
+    {
+      "id": "pass_no_scan",
+      "name": "Not scanning before receiving",
+      "metric": "passing_consistency",
+      "threshold": "passing_consistency < 60",
+      "plain_english": "You receive the ball without looking up first, so you have no information about where to pass. You slow the game down.",
+      "root_cause": "Ball-watching habit — head follows the ball instead of scanning the pitch.",
+      "correction": "Look up at least twice before the ball reaches you. Decide your pass before it arrives.",
+      "drill_ref": "adv_scanning_rondo",
+      "severity": "medium"
+    },
+    {
+      "id": "pass_heavy_touch",
+      "name": "First touch too heavy",
+      "metric": "successful_passes",
+      "threshold": "successful_passes < 15",
+      "plain_english": "The ball bounces too far away when you receive it. You lose time and position recovering it.",
+      "root_cause": "Foot or body is too rigid at contact — not cushioning the ball.",
+      "correction": "Relax your receiving foot. Let the ball come to you — cushion it rather than stopping it dead.",
+      "drill_ref": "beg_receiving_chest",
+      "severity": "high"
+    }
+  ]
+}

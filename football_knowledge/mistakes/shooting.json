@@ -1,0 +1,60 @@
+{
+  "activity": "shooting",
+  "mistakes": [
+    {
+      "id": "shoot_lean_back",
+      "name": "Leaning back at contact",
+      "metric": "body_alignment",
+      "threshold": "body_alignment = Poor",
+      "plain_english": "Your upper body is leaning behind your hips when you shoot. The ball goes over the bar or high and wide.",
+      "root_cause": "Plant foot is positioned behind the ball, pulling the body backward.",
+      "correction": "Plant foot beside the ball, not behind it. Drive your chest over the ball at the moment of contact.",
+      "drill_ref": "beg_shooting_stationary",
+      "severity": "high"
+    },
+    {
+      "id": "shoot_toe_poke",
+      "name": "Striking with the toe",
+      "metric": "accuracy",
+      "threshold": "accuracy < 50%",
+      "plain_english": "Toe-poking gives you almost no control over direction. The ball can go anywhere.",
+      "root_cause": "Rushing the shot or insufficient approach angle.",
+      "correction": "Strike with the laces or inside of the foot. Take one extra touch to set yourself if needed.",
+      "drill_ref": "beg_shooting_stationary",
+      "severity": "high"
+    },
+    {
+      "id": "shoot_no_follow_through",
+      "name": "No follow-through",
+      "metric": "average_speed",
+      "threshold": "average_speed < 15",
+      "plain_english": "You stop your kicking leg at contact. The ball has no power and the direction is unpredictable.",
+      "root_cause": "Tensing up before contact — trying to 'place' the ball rather than strike it.",
+      "correction": "Drive through the ball. Your kicking foot should finish pointing at the target after contact.",
+      "drill_ref": "int_shooting_moving",
+      "severity": "medium"
+    },
+    {
+      "id": "shoot_wrong_surface",
+      "name": "Using wrong foot surface",
+      "metric": "accuracy",
+      "threshold": "accuracy < 60%",
+      "plain_english": "Using the wrong part of your foot for the situation reduces both power and placement.",
+      "root_cause": "Lack of deliberate practice with different contact surfaces.",
+      "correction": "Inside foot for placement. Laces for power. Outside of foot for curl. Practise each separately.",
+      "drill_ref": "int_shooting_moving",
+      "severity": "medium"
+    },
+    {
+      "id": "shoot_looking_up_early",
+      "name": "Looking up before contact",
+      "metric": "accuracy",
+      "threshold": "accuracy < 55%",
+      "plain_english": "Your head comes up before your foot makes contact with the ball, causing you to miss the strike.",
+      "root_cause": "Anxiety about the goalkeeper or target position.",
+      "correction": "Keep your eyes on the ball until after your foot makes contact. Trust your pre-selected target.",
+      "drill_ref": "adv_shooting_pressure",
+      "severity": "high"
+    }
+  ]
+}
