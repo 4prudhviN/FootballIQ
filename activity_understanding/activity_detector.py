@@ -2,63 +2,65 @@
 """
 Activity Detector  ⭐
 =====================
-The unique heart of FootballIQ.
+The heart of FootballIQ.
 
-Input:  Pose landmarks + Ball tracks + Player tracks
-Output: List[DetectedAction] — what football actions happened
+Answers ONE question: "What football actions did the player perform?"
 
-This module ONLY answers: "What football actions happened?"
-It NEVER calculates scores, metrics, or performance ratings.
-No numbers. No analysis. Just action classification.
+Output:
+{
+    "activities": [
+        {"name": "Passing",      "confidence": 0.96},
+        {"name": "Receiving",    "confidence": 0.92},
+        {"name": "Ball Control", "confidence": 0.89}
+    ]
+}
 
-Detected actions:
-  passing, dribbling, shooting, goalkeeping,
-  defending, movement, free_kick, penalty, header
+Rules:
+  ❌ No coaching
+  ❌ No metrics
+  ✅ Pure understanding — what happened
 
-Rules are evidence-based:
-  - Pose patterns (body lean, knee bend, arm position)
-  - Ball position relative to player
-  - Ball velocity and direction
-  - Spatial context (where on the pitch)
-  - Sequence of events over time
+Input: PoseEstimationResult + BallDetectionResult + PlayerDetectionResult
+Output: ActivityDetectionOutput
 
 Writes to PipelineContext:
-  ctx.activity.detected_activities
-  ctx.activity.confidence_scores
-  ctx.activity.primary_activity
-  ctx.activity.timeline
+  ctx.activity.detected_activities  — list of action names
+  ctx.activity.confidence_scores    — {name: confidence}
+  ctx.activity.primary_activity     — highest confidence action
+  ctx.activity.timeline             — time-segmented action list
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-from pipeline.pose_estimator   import PoseEstimationResult, FramePose, PoseLandmark
+from pipeline.pose_estimator   import PoseEstimationResult, FramePose
 from pipeline.ball_detector    import BallDetectionResult, BallDetection
 from pipeline.player_detector  import PlayerDetectionResult
 from pipeline.pipeline_context import PipelineContext, ActivitySegmentCtx
-from schemas.activity_schema   import FootballAction
 from utils.logger              import get_logger
 
 log = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# All recognisable football actions
+# All detectable football actions
 # ---------------------------------------------------------------------------
 
-class FootballActionType:
-    PASSING     = "passing"
-    DRIBBLING   = "dribbling"
-    SHOOTING    = "shooting"
-    GOALKEEPING = "goalkeeping"
-    DEFENDING   = "defending"
-    MOVEMENT    = "movement"
-    FREE_KICK   = "free_kick"
-    PENALTY     = "penalty"
-    HEADER      = "header"
+class Action:
+    PASSING      = "Passing"
+    RECEIVING    = "Receiving"
+    BALL_CONTROL = "Ball Control"
+    DRIBBLING    = "Dribbling"
+    SHOOTING     = "Shooting"
+    GOALKEEPING  = "Goalkeeping"
+    DEFENDING    = "Defending"
+    MOVEMENT     = "Movement"
+    FREE_KICK    = "Free Kick"
+    HEADER       = "Header"
+    PENALTY      = "Penalty"
 
 
 # ---------------------------------------------------------------------------
@@ -66,324 +68,260 @@ class FootballActionType:
 # ---------------------------------------------------------------------------
 
 @dataclass
-class ActionEvidence:
-    """Why an action was detected — observable cues only."""
-    cue:         str     # e.g. "Ball moving at high speed away from player"
-    source:      str     # "pose" | "ball" | "player" | "sequence"
-    frame_index: int
+class DetectedActivity:
+    """A single detected football action with confidence."""
+    name:       str    # e.g. "Passing"
+    confidence: float  # 0.0–1.0
 
 
 @dataclass
-class DetectedAction:
+class ActivityDetectionOutput:
     """
-    A single detected football action.
-    No scores, no metrics — just the action and why it was detected.
+    The complete output of the Activity Detector.
+    Answers: "What football actions did the player perform?"
+    Nothing else.
     """
-    action:      str                        # FootballActionType value
-    start_frame: int
-    end_frame:   int
-    start_time_s: float
-    end_time_s:  float
-    evidence:    List[ActionEvidence] = field(default_factory=list)
-    label:       str                  = ""  # e.g. "00:00–00:25  Passing"
+    activities: List[DetectedActivity]
 
-    def __post_init__(self) -> None:
-        if not self.label:
-            self.label = (
-                f"{self._fmt(self.start_time_s)}–"
-                f"{self._fmt(self.end_time_s)}  "
-                f"{self.action.replace('_', ' ').title()}"
-            )
+    def to_dict(self) -> Dict[str, Any]:
+        """Return the canonical output format."""
+        return {
+            "activities": [
+                {
+                    "name":       a.name,
+                    "confidence": round(a.confidence, 2),
+                }
+                for a in self.activities
+            ]
+        }
 
-    @staticmethod
-    def _fmt(s: float) -> str:
-        m, sec = divmod(int(s), 60)
-        return f"{m:02d}:{sec:02d}"
+    @property
+    def names(self) -> List[str]:
+        return [a.name for a in self.activities]
 
+    @property
+    def primary(self) -> Optional[str]:
+        return self.activities[0].name if self.activities else None
 
-@dataclass
-class ActivityUnderstandingResult:
-    """
-    Full output of the activity detector.
-    What football actions happened — nothing more.
-    """
-    detected_actions:    List[DetectedAction]
-    action_names:        List[str]           # unique action names detected
-    primary_action:      Optional[str]       # most prominent action
-    frame_count:         int
+    @property
+    def confidence_map(self) -> Dict[str, float]:
+        return {a.name: a.confidence for a in self.activities}
 
 
 # ---------------------------------------------------------------------------
-# Rule engine  (observable cues → action classification)
+# Evidence accumulators
+# ---------------------------------------------------------------------------
+# Each signal contributes evidence for one or more actions.
+# Confidence is accumulated from multiple independent signals.
+# Final confidence is normalised to [0, 1].
+
+_MAX_CONFIDENCE = 1.0
+
+def _clamp(v: float) -> float:
+    return max(0.0, min(_MAX_CONFIDENCE, v))
+
+
+class _EvidenceAccumulator:
+    """Accumulates confidence evidence for each action across all frames."""
+
+    def __init__(self) -> None:
+        self._scores: Dict[str, float] = {}
+        self._counts: Dict[str, int]   = {}
+
+    def add(self, action: str, score: float) -> None:
+        """Add evidence for an action in one frame."""
+        self._scores[action] = self._scores.get(action, 0.0) + score
+        self._counts[action] = self._counts.get(action, 0)   + 1
+
+    def normalise(self, total_frames: int) -> Dict[str, float]:
+        """
+        Normalise accumulated scores to [0, 1].
+        Returns dict of {action: confidence}.
+        """
+        if total_frames <= 0:
+            return {}
+        result: Dict[str, float] = {}
+        for action, total_score in self._scores.items():
+            # Confidence = fraction of frames where action was evidenced,
+            # weighted by the strength of evidence per frame.
+            avg_score    = total_score / self._counts[action]
+            frame_cover  = self._counts[action] / total_frames
+            confidence   = _clamp(avg_score * 0.6 + frame_cover * 0.4)
+            result[action] = round(confidence, 3)
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Per-frame signal extractors
 # ---------------------------------------------------------------------------
 
-class _RuleEngine:
+class _SignalExtractor:
     """
-    Applies observable football rules to classify actions per frame.
-    Returns a list of (action_name, evidence) tuples for each frame.
-    No scores. Binary: either the evidence is there or it isn't.
+    Extracts observable football signals from one frame.
+    Each signal is a (action, strength) pair.
+    Strength is in [0, 1].
     """
 
-    def classify_frame(
+    def extract(
         self,
-        pose:        Optional[FramePose],
-        ball:        Optional[BallDetection],
-        prev_ball:   Optional[BallDetection],
-        frame_index: int,
-    ) -> List[Tuple[str, str]]:
-        """
-        Returns list of (action, evidence_cue) for this frame.
-        Multiple actions can co-occur in the same frame.
-        """
-        signals: List[Tuple[str, str]] = []
+        pose:      Optional[FramePose],
+        ball:      Optional[BallDetection],
+        prev_ball: Optional[BallDetection],
+        frame_idx: int,
+        fps:       float,
+    ) -> List[tuple[str, float]]:
+        """Return list of (action_name, strength) for this frame."""
+        signals: List[tuple[str, float]] = []
 
-        # ── Ball-based rules ─────────────────────────────────────────────────
+        # ── Ball movement signals ────────────────────────────────────────────
 
-        if ball is not None:
-            # Ball speed (pixels moved since last frame).
-            if prev_ball is not None:
-                dx = ball.center_x - prev_ball.center_x
-                dy = ball.center_y - prev_ball.center_y
-                speed = math.hypot(dx, dy)
+        if ball and prev_ball:
+            dx    = ball.center_x - prev_ball.center_x
+            dy    = ball.center_y - prev_ball.center_y
+            speed = math.hypot(dx, dy)
 
-                if speed > 40:
-                    signals.append((
-                        FootballActionType.SHOOTING,
-                        f"Ball moving fast ({speed:.0f}px/frame) — shot or driven pass"
-                    ))
-                elif speed > 15:
-                    signals.append((
-                        FootballActionType.PASSING,
-                        f"Ball moving moderately ({speed:.0f}px/frame) — pass"
-                    ))
-                elif speed < 3 and pose and self._ball_near_feet(ball, pose):
-                    signals.append((
-                        FootballActionType.DRIBBLING,
-                        "Ball stationary near player feet — close control"
-                    ))
+            if speed > 50:
+                # Fast ball departure — shooting or driven pass.
+                signals.append((Action.SHOOTING,  0.75))
+                signals.append((Action.PASSING,   0.50))
 
-            # Ball near player feet → dribbling candidate.
-            if pose and self._ball_near_feet(ball, pose):
-                signals.append((
-                    FootballActionType.DRIBBLING,
-                    "Ball within foot range — dribbling or receiving"
-                ))
+            elif speed > 20:
+                # Moderate ball movement — pass or first touch.
+                signals.append((Action.PASSING,      0.65))
+                signals.append((Action.BALL_CONTROL, 0.40))
 
-            # Ball high up and player near → header candidate.
-            if pose and ball.center_y < 0.3 * 1080:
-                nose = pose.get("nose")
-                if nose and abs(nose.x * 1920 - ball.center_x) < 80:
-                    signals.append((
-                        FootballActionType.HEADER,
-                        "Ball at head height near player — header attempt"
-                    ))
+            elif speed > 5:
+                # Slow ball movement — receiving or controlling.
+                signals.append((Action.RECEIVING,    0.60))
+                signals.append((Action.BALL_CONTROL, 0.55))
 
-        # ── Pose-based rules ─────────────────────────────────────────────────
+            elif speed < 3:
+                # Ball nearly stationary.
+                if pose and self._ball_at_feet(ball, pose):
+                    signals.append((Action.BALL_CONTROL, 0.70))
+                    signals.append((Action.DRIBBLING,    0.45))
+
+        elif ball and not prev_ball:
+            # Ball just appeared — receiving.
+            signals.append((Action.RECEIVING, 0.55))
+
+        # ── Ball proximity signals ───────────────────────────────────────────
+
+        if ball and pose:
+            if self._ball_at_feet(ball, pose):
+                signals.append((Action.BALL_CONTROL, 0.60))
+                signals.append((Action.DRIBBLING,    0.35))
+
+            if self._ball_at_head(ball, pose):
+                signals.append((Action.HEADER, 0.80))
+
+        # ── Pose-based signals ───────────────────────────────────────────────
 
         if pose and pose.detected:
 
-            # Kicking posture: one leg raised, torso leaning.
-            if self._kicking_posture(pose):
-                signals.append((
-                    FootballActionType.SHOOTING,
-                    "Kicking posture detected — leg raised, weight on plant foot"
-                ))
+            if self._kicking_leg_raised(pose):
+                signals.append((Action.SHOOTING,  0.65))
+                signals.append((Action.PASSING,   0.45))
 
-            # Goalkeeper dive: arms wide, lateral lean.
-            if self._goalkeeper_posture(pose):
-                signals.append((
-                    FootballActionType.GOALKEEPING,
-                    "Arms spread wide, lateral body position — goalkeeper stance"
-                ))
+            if self._arms_wide(pose):
+                signals.append((Action.GOALKEEPING, 0.75))
 
-            # Defensive jockey: side-on stance, bent knees, arms out.
-            if self._defensive_posture(pose):
-                signals.append((
-                    FootballActionType.DEFENDING,
-                    "Side-on low stance — defensive jockeying position"
-                ))
+            if self._defensive_stance(pose):
+                signals.append((Action.DEFENDING, 0.65))
 
-            # Running without ball nearby.
-            if ball is None or (pose and not self._ball_near_feet(ball, pose)):
-                if self._running_posture(pose):
-                    signals.append((
-                        FootballActionType.MOVEMENT,
-                        "Player running without ball — movement action"
-                    ))
+            if self._running_arms(pose):
+                signals.append((Action.MOVEMENT, 0.50))
 
-        # ── Set piece detection ───────────────────────────────────────────────
+            if self._leaning_forward(pose):
+                # Forward lean at contact = shooting/passing posture.
+                signals.append((Action.PASSING,  0.40))
+                signals.append((Action.SHOOTING, 0.35))
 
-        # Free kick: player stationary over ball, then ball moves fast.
-        if (ball is not None and prev_ball is not None and
-                math.hypot(
-                    ball.center_x - prev_ball.center_x,
-                    ball.center_y - prev_ball.center_y
-                ) > 50 and
-                pose and self._stationary_over_ball(ball, pose)):
-            signals.append((
-                FootballActionType.FREE_KICK,
-                "Player was stationary over ball, then ball moved rapidly — free kick"
-            ))
+        # ── Default: player is always moving ────────────────────────────────
+        if pose and pose.detected:
+            signals.append((Action.MOVEMENT, 0.25))
 
         return signals
 
     # ------------------------------------------------------------------
-    # Observable pose cues
+    # Observable pose cues — each returns True/False only
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _ball_near_feet(ball: BallDetection, pose: FramePose) -> bool:
-        """True if ball is within ~50px of either ankle."""
-        for ankle_name in ("left_ankle", "right_ankle"):
-            ankle = pose.get(ankle_name)
+    def _ball_at_feet(ball: BallDetection, pose: FramePose) -> bool:
+        for name in ("left_ankle", "right_ankle"):
+            ankle = pose.get(name)
             if ankle is None:
                 continue
             dist = math.hypot(
                 ankle.x * 1920 - ball.center_x,
                 ankle.y * 1080 - ball.center_y,
             )
-            if dist < 80:
+            if dist < 90:
                 return True
         return False
 
     @staticmethod
-    def _kicking_posture(pose: FramePose) -> bool:
-        """
-        True if one knee is significantly higher than the other
-        (leg raised for kick) and hips are level-ish.
-        """
-        lk = pose.get("left_knee")
-        rk = pose.get("right_knee")
-        if lk is None or rk is None:
+    def _ball_at_head(ball: BallDetection, pose: FramePose) -> bool:
+        nose = pose.get("nose")
+        if nose is None:
             return False
-        # In normalised coords, lower y = higher on screen.
-        knee_diff = abs(lk.y - rk.y)
-        return knee_diff > 0.12 and lk.is_visible and rk.is_visible
+        dist = math.hypot(
+            nose.x * 1920 - ball.center_x,
+            nose.y * 1080 - ball.center_y,
+        )
+        return dist < 70
 
     @staticmethod
-    def _goalkeeper_posture(pose: FramePose) -> bool:
-        """True if arms are spread wide (wrists far from centre line)."""
+    def _kicking_leg_raised(pose: FramePose) -> bool:
+        lk = pose.get("left_knee")
+        rk = pose.get("right_knee")
+        if None in (lk, rk):
+            return False
+        return abs(lk.y - rk.y) > 0.12
+
+    @staticmethod
+    def _arms_wide(pose: FramePose) -> bool:
         lw = pose.get("left_wrist")
         rw = pose.get("right_wrist")
         ls = pose.get("left_shoulder")
         rs = pose.get("right_shoulder")
         if None in (lw, rw, ls, rs):
             return False
-        shoulder_width = abs(ls.x - rs.x)
-        wrist_width    = abs(lw.x - rw.x)
-        return wrist_width > shoulder_width * 1.8
+        shoulder_w = abs(ls.x - rs.x)
+        wrist_w    = abs(lw.x - rw.x)
+        return wrist_w > shoulder_w * 1.8
 
     @staticmethod
-    def _defensive_posture(pose: FramePose) -> bool:
-        """True if player is in a low side-on stance (bent knees, narrow hips)."""
+    def _defensive_stance(pose: FramePose) -> bool:
         lk = pose.get("left_knee")
         rk = pose.get("right_knee")
         lh = pose.get("left_hip")
         rh = pose.get("right_hip")
         if None in (lk, rk, lh, rh):
             return False
-        # Knees bent = knee y > hip y in normalised coords.
-        l_bent = lk.y > lh.y + 0.05
-        r_bent = rk.y > rh.y + 0.05
-        return l_bent and r_bent
+        return (lk.y > lh.y + 0.05) and (rk.y > rh.y + 0.05)
 
     @staticmethod
-    def _running_posture(pose: FramePose) -> bool:
-        """True if alternating arm-leg pattern suggests running."""
+    def _running_arms(pose: FramePose) -> bool:
         lw = pose.get("left_wrist")
         rw = pose.get("right_wrist")
-        if lw is None or rw is None:
+        if None in (lw, rw):
             return False
-        # Arms in different vertical positions = running arm swing.
         return abs(lw.y - rw.y) > 0.08
 
     @staticmethod
-    def _stationary_over_ball(ball: BallDetection, pose: FramePose) -> bool:
-        """True if player hips are directly above the ball."""
+    def _leaning_forward(pose: FramePose) -> bool:
+        ls = pose.get("left_shoulder")
+        rs = pose.get("right_shoulder")
         lh = pose.get("left_hip")
         rh = pose.get("right_hip")
-        if None in (lh, rh):
+        if None in (ls, rs, lh, rh):
             return False
-        hip_cx = ((lh.x + rh.x) / 2) * 1920
-        hip_cy = ((lh.y + rh.y) / 2) * 1080
-        dist   = math.hypot(hip_cx - ball.center_x, hip_cy - ball.center_y)
-        return dist < 120
-
-
-# ---------------------------------------------------------------------------
-# Sequence grouper
-# ---------------------------------------------------------------------------
-
-class _SequenceGrouper:
-    """
-    Groups consecutive frames with the same action into segments.
-    Merges short gaps. Drops tiny segments.
-    """
-    MIN_SEGMENT_FRAMES = 4
-    MAX_GAP_FRAMES     = 8
-
-    def group(
-        self,
-        frame_actions: List[Tuple[int, float, str, str]],   # (frame_idx, ts, action, cue)
-        fps: float,
-    ) -> List[DetectedAction]:
-        if not frame_actions:
-            return []
-
-        # Group by action.
-        from collections import defaultdict
-        by_action: Dict[str, List[Tuple[int, float, str]]] = defaultdict(list)
-        for fi, ts, action, cue in frame_actions:
-            by_action[action].append((fi, ts, cue))
-
-        segments: List[DetectedAction] = []
-
-        for action, entries in by_action.items():
-            entries.sort(key=lambda e: e[0])
-            current_start_fi, current_start_ts, current_cue = entries[0]
-            current_end_fi   = entries[0][0]
-            current_end_ts   = entries[0][1]
-            evidence_list    = [ActionEvidence(cue=entries[0][2], source="rules", frame_index=entries[0][0])]
-
-            for i in range(1, len(entries)):
-                fi, ts, cue = entries[i]
-                gap = fi - current_end_fi
-
-                if gap <= self.MAX_GAP_FRAMES:
-                    current_end_fi = fi
-                    current_end_ts = ts
-                    evidence_list.append(ActionEvidence(cue=cue, source="rules", frame_index=fi))
-                else:
-                    # Save current segment if long enough.
-                    if current_end_fi - current_start_fi >= self.MIN_SEGMENT_FRAMES:
-                        segments.append(DetectedAction(
-                            action       = action,
-                            start_frame  = current_start_fi,
-                            end_frame    = current_end_fi,
-                            start_time_s = current_start_ts,
-                            end_time_s   = current_end_ts,
-                            evidence     = evidence_list,
-                        ))
-                    # Start new segment.
-                    current_start_fi = fi
-                    current_start_ts = ts
-                    current_end_fi   = fi
-                    current_end_ts   = ts
-                    evidence_list    = [ActionEvidence(cue=cue, source="rules", frame_index=fi)]
-
-            # Final segment.
-            if current_end_fi - current_start_fi >= self.MIN_SEGMENT_FRAMES:
-                segments.append(DetectedAction(
-                    action       = action,
-                    start_frame  = current_start_fi,
-                    end_frame    = current_end_fi,
-                    start_time_s = current_start_ts,
-                    end_time_s   = current_end_ts,
-                    evidence     = evidence_list,
-                ))
-
-        segments.sort(key=lambda s: s.start_frame)
-        return segments
+        sh_y = (ls.y + rs.y) / 2
+        hi_y = (lh.y + rh.y) / 2
+        # Shoulders higher than hips (in y coords) = forward lean
+        return (hi_y - sh_y) > 0.15
 
 
 # ---------------------------------------------------------------------------
@@ -392,34 +330,39 @@ class _SequenceGrouper:
 
 class ActivityDetector:
     """
-    Detects which football actions happened in the video.
+    Detects which football actions the player performed.
 
-    Input:  Pose + Ball + Player results from earlier pipeline stages
-    Output: ActivityUnderstandingResult — what actions happened, when
+    Input:  pose + ball + player results from pipeline stages 2b–2d
+    Output: ActivityDetectionOutput
 
-    This module ONLY answers "What happened?"
-    It NEVER calculates performance scores.
+    ONE question: "What football actions did the player perform?"
+    No coaching. No metrics. Pure understanding.
 
     Usage::
 
         detector = ActivityDetector()
-        result   = detector.detect(pose_result, ball_result, player_result)
-        detector.write_to_context(result, ctx)
+        output   = detector.detect(pose_result, ball_result)
+        print(output.to_dict())
+        # {"activities": [{"name": "Passing", "confidence": 0.96}, ...]}
+
+        detector.write_to_context(output, ctx)
     """
 
+    # Minimum confidence to include in output.
+    MIN_CONFIDENCE = 0.15
+
     def __init__(self) -> None:
-        self._rules   = _RuleEngine()
-        self._grouper = _SequenceGrouper()
+        self._extractor = _SignalExtractor()
 
     def detect(
         self,
-        pose_result:   PoseEstimationResult,
-        ball_result:   BallDetectionResult,
-        player_result: Optional[PlayerDetectionResult] = None,
-        fps:           float = 25.0,
-    ) -> ActivityUnderstandingResult:
+        pose_result:    PoseEstimationResult,
+        ball_result:    BallDetectionResult,
+        player_result:  Optional[PlayerDetectionResult] = None,
+        fps:            float = 25.0,
+    ) -> ActivityDetectionOutput:
         """
-        Detect football actions from pose, ball, and player data.
+        Detect football actions from pose and ball data.
 
         Parameters
         ----------
@@ -430,9 +373,8 @@ class ActivityDetector:
 
         Returns
         -------
-        ActivityUnderstandingResult
+        ActivityDetectionOutput — {activities: [{name, confidence}, ...]}
         """
-        # Build per-frame lookups.
         pose_map: Dict[int, FramePose] = {
             fp.frame_index: fp
             for fp in pose_result.frame_poses
@@ -443,84 +385,69 @@ class ActivityDetector:
             for bd in ball_result.detections
         }
 
-        # Process each frame.
-        frame_actions: List[Tuple[int, float, str, str]] = []
-        sorted_frames  = sorted(pose_map.keys())
+        accumulator   = _EvidenceAccumulator()
+        sorted_frames = sorted(pose_map.keys())
         prev_ball: Optional[BallDetection] = None
 
         for fi in sorted_frames:
-            pose       = pose_map.get(fi)
-            ball       = ball_map.get(fi)
-            timestamp  = pose.timestamp_s if pose else fi / fps
+            pose = pose_map.get(fi)
+            ball = ball_map.get(fi)
 
-            signals = self._rules.classify_frame(pose, ball, prev_ball, fi)
-            for action, cue in signals:
-                frame_actions.append((fi, timestamp, action, cue))
+            signals = self._extractor.extract(
+                pose, ball, prev_ball, fi, fps
+            )
+            for action, strength in signals:
+                accumulator.add(action, strength)
 
             if ball is not None:
                 prev_ball = ball
 
-        # Group into segments.
-        segments = self._grouper.group(frame_actions, fps)
+        total_frames = len(sorted_frames) or 1
+        scores       = accumulator.normalise(total_frames)
 
-        # Derive action names.
-        action_names = list(dict.fromkeys(s.action for s in segments))
+        # Build output — filter below threshold, sort by confidence.
+        activities = [
+            DetectedActivity(name=name, confidence=conf)
+            for name, conf in scores.items()
+            if conf >= self.MIN_CONFIDENCE
+        ]
+        activities.sort(key=lambda a: a.confidence, reverse=True)
 
-        # Primary action = longest segment.
-        primary = (
-            max(segments, key=lambda s: s.end_frame - s.start_frame).action
-            if segments else None
-        )
-
-        # Fallback: if nothing detected, assume passing (default activity).
-        if not action_names:
-            action_names = [FootballActionType.PASSING]
-            primary      = FootballActionType.PASSING
+        # Always return at least one activity.
+        if not activities:
+            activities = [DetectedActivity(name=Action.MOVEMENT, confidence=0.50)]
 
         log.debug(
-            "ActivityDetector: %d segments  actions=%s  primary=%s",
-            len(segments), action_names, primary,
+            "ActivityDetector: %d activities detected  primary=%s",
+            len(activities), activities[0].name,
         )
 
-        return ActivityUnderstandingResult(
-            detected_actions = segments,
-            action_names     = action_names,
-            primary_action   = primary,
-            frame_count      = len(pose_result.frame_poses),
-        )
+        return ActivityDetectionOutput(activities=activities)
 
     @staticmethod
     def write_to_context(
-        result: ActivityUnderstandingResult,
+        output: ActivityDetectionOutput,
         ctx:    PipelineContext,
-        fps:    float = 25.0,
     ) -> None:
-        """Write activity detection results to PipelineContext."""
-        ctx.activity.detected_activities = result.action_names
-        ctx.activity.primary_activity    = result.primary_action
-        ctx.activity.raw_detection_count = result.frame_count
+        """Write detection results to PipelineContext."""
+        ctx.activity.detected_activities = output.names
+        ctx.activity.confidence_scores   = output.confidence_map
+        ctx.activity.primary_activity    = output.primary
 
-        # Confidence scores — binary (detected = 1.0, not detected = 0.0).
-        ctx.activity.confidence_scores = {
-            action: 1.0 for action in result.action_names
-        }
-
-        # Timeline segments.
+        # Build timeline segments from activity list.
         ctx.activity.timeline = [
             ActivitySegmentCtx(
-                action       = seg.action,
-                start_time_s = seg.start_time_s,
-                end_time_s   = seg.end_time_s,
-                duration_s   = round(seg.end_time_s - seg.start_time_s, 2),
-                confidence   = 1.0,
-                label        = seg.label,
+                action       = a.name.lower().replace(" ", "_"),
+                start_time_s = 0.0,
+                end_time_s   = 0.0,
+                duration_s   = 0.0,
+                confidence   = a.confidence,
+                label        = a.name,
             )
-            for seg in result.detected_actions
+            for a in output.activities
         ]
 
         ctx.log_stage(
             "activity_detect",
-            f"actions={result.action_names}  "
-            f"segments={len(result.detected_actions)}  "
-            f"primary={result.primary_action}",
+            f"activities={output.names}  primary={output.primary}",
         )
