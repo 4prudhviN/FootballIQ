@@ -2,17 +2,28 @@
 """
 Prompt Builder
 ==============
-Converts structured metric data into a well-formed LLM prompt.
+Builds the LLM prompt from structured coaching data.
 
-Responsibilities:
-  - Accept metrics dict, detected activities, player level
-  - Build a structured, context-rich prompt
-  - Return a plain string ready for the LLM provider
+The LLM's ONLY job is to rewrite structured findings into natural language.
+It must NOT invent new football advice — all coaching points come from the
+FeedbackEngine and knowledge base.
+
+Instead of sending:
+  "Passing Accuracy: 61%"
+
+We send:
+  "The player completed 19 out of 31 passes successfully.
+   Root cause: Body leaning backward before striking.
+   Correction: Keep chest facing the target.
+   Drill: Wall rebounder drill."
+
+The LLM rewrites this into:
+  "You completed 19 out of 31 passes successfully. Most missed passes
+   happened because your body leaned backward before striking the ball.
+   Keeping your chest facing the target will improve accuracy."
 
 Pipeline position:
-  Metrics → Prompt → LLM → Football Report
-
-No AI calls here — this module only builds text.
+  FeedbackReport + Metrics → PromptBuilder → LLM → natural language
 """
 
 from __future__ import annotations
@@ -24,59 +35,72 @@ from ai.prompt_templates.template_loader import TemplateLoader
 
 
 # ---------------------------------------------------------------------------
-# Input
+# Input context
 # ---------------------------------------------------------------------------
 
 @dataclass
 class PromptContext:
-    """All data needed to build a coaching prompt."""
+    """All structured data needed to build the rewrite prompt."""
+    player_level:         str
+    detected_activities:  List[str]
+    torso_lean:           float
+    knee_stability:       float
+    gait_symmetry:        float
+    warnings:             List[str]
+    by_action:            Dict[str, Dict[str, str]]
 
-    # Player context
-    player_level:        str                       # "Beginner" | "Intermediate" | "Advanced"
-    detected_activities: List[str]                 # e.g. ["shooting", "movement"]
+    # Structured coaching findings from FeedbackEngine (not raw metrics)
+    coaching_issues:      List[Dict[str, Any]] = field(default_factory=list)
+    # Each: {metric, value, root_cause, observation, correction, drill, coach_tip}
 
-    # Core biomechanical scalars
-    torso_lean:          float                     # degrees
-    knee_stability:      float                     # 0–100
-    gait_symmetry:       float                     # 0–100
-    warnings:            List[str]                 # raw warning flags
-
-    # Per-action display metrics
-    by_action:           Dict[str, Dict[str, str]] # {"shooting": {"Shot Velocity": "88 km/h"}}
-
-    # Optional session metadata
-    session_id:          Optional[str] = None
-    video_duration_s:    Optional[float] = None
+    positive_findings:    List[str]            = field(default_factory=list)
+    session_id:           Optional[str]        = None
+    video_duration_s:     Optional[float]      = None
 
 
 # ---------------------------------------------------------------------------
-# Prompt templates
+# Prompt Builder
 # ---------------------------------------------------------------------------
 
-_SYSTEM_PERSONA = """\
-You are FootballIQ Coach — an elite AI football performance analyst who combines \
-the precision of sports science with the clarity of a top-level coach. \
-You speak directly to the player in plain, motivating English. \
-No jargon, no waffle. Short sentences. Specific feedback only.\
+_SYSTEM_INSTRUCTION = """\
+You are a football performance analyst rewriting structured coaching data into natural language.
+
+RULES — you must follow these exactly:
+1. You are a TRANSLATOR only. Every coaching point you write must come from the data provided.
+2. Do NOT invent new coaching advice, drills, or observations.
+3. Do NOT use technical jargon — write in plain English the player can understand.
+4. Reference actual numbers from the data (e.g. "19 out of 31 passes").
+5. Be direct and specific. No filler phrases.
+6. Tone: supportive but honest. Like a coach who respects the player's time.\
 """
 
-_METRIC_ROW = "  • {label}: {value}"
+_OUTPUT_FORMAT = """\
+Respond with valid JSON only:
+{
+  "summary":         "2-3 sentences. What happened in this session overall, referencing actual numbers.",
+  "strengths":       ["one sentence per strength, referencing a specific metric value"],
+  "weaknesses":      ["one sentence per issue, naming the root cause and its effect on performance"],
+  "coachingTips":    ["one actionable tip per issue, written as a direct instruction"],
+  "motivationalTip": "one sentence closing message appropriate for the player's level"
+}
+Do not include any text outside the JSON object.\
+"""
 
 
 class PromptBuilder:
     """
-    Build structured coaching prompts from metric data.
+    Builds LLM prompts from structured coaching data.
 
-    Usage::
-
-        builder = PromptBuilder()
-        prompt  = builder.build(context)
-        # pass prompt to LLMProvider
+    The prompt tells the LLM exactly what to rewrite and in what format.
+    The LLM adds no new football knowledge — only natural language.
     """
+
+    def __init__(self) -> None:
+        self._templates = TemplateLoader()
 
     def build(self, ctx: PromptContext) -> str:
         """
-        Build and return the full LLM prompt string.
+        Build the full rewrite prompt from structured coaching context.
 
         Parameters
         ----------
@@ -84,110 +108,96 @@ class PromptBuilder:
 
         Returns
         -------
-        str — ready-to-send prompt
+        str — complete prompt ready to send to LLM
         """
         sections: List[str] = []
 
-        # ── System persona ────────────────────────────────────────────────
-        sections.append(_SYSTEM_PERSONA)
+        sections.append(_SYSTEM_INSTRUCTION)
         sections.append("")
 
-        # ── Session overview ──────────────────────────────────────────────
+        # ── Session context ────────────────────────────────────────────────
         sections.append("═" * 56)
-        sections.append("PLAYER SESSION REPORT")
+        sections.append("SESSION DATA TO REWRITE")
         sections.append("═" * 56)
-        sections.append(f"Skill Level : {ctx.player_level}")
-        sections.append(f"Activities  : {', '.join(ctx.detected_activities) or 'General movement'}")
+        sections.append(f"Player Level : {ctx.player_level}")
+        sections.append(f"Activities   : {', '.join(ctx.detected_activities) or 'General movement'}")
         if ctx.video_duration_s:
-            sections.append(f"Duration    : {ctx.video_duration_s:.0f}s")
+            sections.append(f"Duration     : {ctx.video_duration_s:.0f} seconds")
         sections.append("")
 
-        # ── Core biomechanical metrics ────────────────────────────────────
-        sections.append("── Core Biomechanics ──")
-        sections.append(_METRIC_ROW.format(label="Torso Lean at Contact",
-                                           value=f"{ctx.torso_lean:.1f}°"))
-        sections.append(_METRIC_ROW.format(label="Knee Stability Score",
-                                           value=f"{ctx.knee_stability:.0f}/100"))
-        sections.append(_METRIC_ROW.format(label="Gait Symmetry Score",
-                                           value=f"{ctx.gait_symmetry:.0f}/100"))
-        sections.append("")
-
-        # ── Active warnings ───────────────────────────────────────────────
-        if ctx.warnings:
-            sections.append("── Detected Issues ──")
-            for w in ctx.warnings:
-                sections.append(f"  ⚠ {w}")
+        # ── Per-action metrics (actual numbers) ────────────────────────────
+        if ctx.by_action:
+            sections.append("── Measured Metrics ──")
+            for activity, metrics in ctx.by_action.items():
+                sections.append(f"  {activity.capitalize()}:")
+                for label, value in metrics.items():
+                    sections.append(f"    • {label}: {value}")
             sections.append("")
 
-        # ── Per-activity metrics ──────────────────────────────────────────
-        for activity, metrics in ctx.by_action.items():
-            if not metrics:
-                continue
-            sections.append(f"── {activity.capitalize()} Metrics ──")
-            for label, value in metrics.items():
-                sections.append(_METRIC_ROW.format(label=label, value=value))
+        # ── Biomechanical readings ─────────────────────────────────────────
+        sections.append("── Biomechanical Readings ──")
+        sections.append(f"  • Torso lean at contact : {ctx.torso_lean:.1f}°  "
+                        f"({'poor — lean back' if ctx.torso_lean > 15 else 'good'})")
+        sections.append(f"  • Knee stability score  : {ctx.knee_stability:.0f}/100")
+        sections.append(f"  • Gait symmetry score   : {ctx.gait_symmetry:.0f}/100")
+        sections.append("")
+
+        # ── Structured coaching issues (from FeedbackEngine) ──────────────
+        if ctx.coaching_issues:
+            sections.append("── Coaching Issues Found (rewrite each into natural language) ──")
+            for i, issue in enumerate(ctx.coaching_issues, 1):
+                sections.append(f"  Issue {i}: {issue.get('metric', '').replace('_', ' ').title()}")
+                sections.append(f"    Value      : {issue.get('value', '')}")
+                sections.append(f"    Root cause : {issue.get('root_cause', '')}")
+                sections.append(f"    Observation: {issue.get('observation', '')}")
+                sections.append(f"    Correction : {issue.get('correction', '')}")
+                sections.append(f"    Drill      : {issue.get('drill', '')}")
+                sections.append(f"    Coach tip  : {issue.get('coach_tip', '')}")
+                sections.append("")
+
+        # ── Positive findings ──────────────────────────────────────────────
+        if ctx.positive_findings:
+            sections.append("── What the Player Did Well ──")
+            for p in ctx.positive_findings:
+                sections.append(f"  ✓ {p}")
             sections.append("")
 
-        # ── Coaching instructions ─────────────────────────────────────────
+        # ── Rewrite instructions ───────────────────────────────────────────
         sections.append("═" * 56)
-        sections.append("YOUR TASK")
+        sections.append("YOUR TASK: REWRITE THE ABOVE INTO NATURAL LANGUAGE")
         sections.append("═" * 56)
         sections.append(
-            "Based on the session data above, produce a coaching report with "
-            "exactly these five sections. Use the section headers exactly as shown."
+            f"Rewrite the session data above into clear, plain English for a "
+            f"{ctx.player_level} football player. "
+            "Use the actual numbers. Reference the root causes. "
+            "Do not add any coaching advice that is not in the data above."
         )
         sections.append("")
-        sections.append("1. SUMMARY")
-        sections.append(
-            "   One paragraph (3–4 sentences). What happened in this session overall? "
-            "State the player level and primary activity. Be specific, not generic."
-        )
-        sections.append("")
-        sections.append("2. STRENGTHS")
-        sections.append(
-            "   Bullet list. What did the player do well? "
-            "Reference actual metric values. Minimum 2 points."
-        )
-        sections.append("")
-        sections.append("3. AREAS TO IMPROVE")
-        sections.append(
-            "   Bullet list. What must the player fix? "
-            "Each point must reference a specific metric or warning flag. "
-            "Minimum 2 points. Be direct — say exactly what is wrong."
-        )
-        sections.append("")
-        sections.append("4. TRAINING DRILLS")
-        sections.append(
-            "   For each area to improve, give ONE specific drill. "
-            "Format: Drill Name | Instructions | Duration. "
-            "No generic advice — every drill must target a specific metric."
-        )
-        sections.append("")
-        sections.append("5. COACH TIP")
-        sections.append(
-            "   One sentence. The single most important thing the player should "
-            f"focus on in their next session as a {ctx.player_level} player."
-        )
-        sections.append("")
-        sections.append(
-            "Write for the player directly. Use 'you' and 'your'. "
-            "Keep each section concise. No filler words."
-        )
+        sections.append(_OUTPUT_FORMAT)
 
         return "\n".join(sections)
 
     def build_quick_tip(self, ctx: PromptContext) -> str:
         """
-        Build a shorter prompt for a single quick coaching tip.
-        Used when a full report is not needed.
+        Build a short rewrite prompt for a single coaching tip.
+        Used for quick feedback without a full report.
         """
-        warnings_str = ", ".join(ctx.warnings) if ctx.warnings else "none"
-        activities_str = ", ".join(ctx.detected_activities) or "general movement"
+        if not ctx.coaching_issues:
+            return (
+                f"{_SYSTEM_INSTRUCTION}\n\n"
+                f"Player: {ctx.player_level} | "
+                f"Activities: {', '.join(ctx.detected_activities)}\n\n"
+                f"Rewrite this into one plain English sentence: "
+                f"'Good session overall with no major issues detected.'"
+            )
 
+        issue = ctx.coaching_issues[0]
         return (
-            f"{_SYSTEM_PERSONA}\n\n"
-            f"Player: {ctx.player_level} | Activities: {activities_str} | "
-            f"Warnings: {warnings_str}\n\n"
-            f"Give ONE specific, actionable coaching tip in 2 sentences maximum. "
-            f"Reference a real metric or warning. No generic advice."
+            f"{_SYSTEM_INSTRUCTION}\n\n"
+            f"Player: {ctx.player_level}\n"
+            f"Issue: {issue.get('metric')} = {issue.get('value')}\n"
+            f"Root cause: {issue.get('root_cause')}\n"
+            f"Correction: {issue.get('correction')}\n\n"
+            f"Rewrite the above into ONE plain English sentence (max 30 words). "
+            f"Reference the actual value. Use 'you' and 'your'. No jargon."
         )

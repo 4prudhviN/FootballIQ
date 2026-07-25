@@ -690,6 +690,20 @@ class PipelineManager:
                         gait_symmetry       = gait_symmetry,
                         warnings            = pose_result.warnings,
                         by_action           = {a: am.to_display_dict() for a, am in action_metrics.items()},
+                        # Pass structured coaching issues — LLM rewrites, not invents
+                        coaching_issues     = [
+                            {
+                                "metric":      i.metric,
+                                "value":       raw_metrics.get(i.metric, ""),
+                                "root_cause":  i.plain_observation,
+                                "observation": i.plain_observation,
+                                "correction":  i.adapted_drill,
+                                "drill":       i.adapted_drill,
+                                "coach_tip":   i.adapted_coach_tip,
+                            }
+                            for i in feedback_report.items
+                        ],
+                        positive_findings   = feedback_report.positive,
                         video_duration_s    = ctx.video.duration_s,
                     )
                     if ai_rep.summary:

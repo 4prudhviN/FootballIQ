@@ -73,41 +73,47 @@ class ExplanationEngine:
         gait_symmetry:       float,
         warnings:            List[str],
         by_action:           Optional[Dict[str, Dict[str, str]]] = None,
+        coaching_issues:     Optional[List[Dict]] = None,
+        positive_findings:   Optional[List[str]]  = None,
         session_id:          Optional[str]  = None,
         video_duration_s:    Optional[float] = None,
     ) -> FootballReport:
         """
-        Run the full AI explanation pipeline and return a validated FootballReport.
+        Rewrite structured coaching data into natural language.
+
+        The LLM receives fully-formed coaching findings and rewrites them.
+        It adds NO new football knowledge.
 
         Parameters
         ----------
         detected_activities : list[str]
-        player_level        : str   — "Beginner" | "Intermediate" | "Advanced"
-        torso_lean          : float — degrees
-        knee_stability      : float — 0–100
-        gait_symmetry       : float — 0–100
+        player_level        : str
+        torso_lean          : float
+        knee_stability      : float
+        gait_symmetry       : float
         warnings            : list[str]
-        by_action           : dict | None
+        by_action           : dict — per-action display metrics
+        coaching_issues     : list[dict] — structured findings from FeedbackEngine
+        positive_findings   : list[str] — positive observations
         session_id          : str | None
         video_duration_s    : float | None
 
         Returns
         -------
-        FootballReport — always valid, always has all required fields
+        FootballReport — natural language rewrite of structured data
         """
-        primary = detected_activities[0] if detected_activities else "general"
-
-        # Build prompt using activity-specific template.
         ctx = PromptContext(
-            player_level        = player_level,
-            detected_activities = detected_activities,
-            torso_lean          = torso_lean,
-            knee_stability      = knee_stability,
-            gait_symmetry       = gait_symmetry,
-            warnings            = warnings,
-            by_action           = by_action or {},
-            session_id          = session_id,
-            video_duration_s    = video_duration_s,
+            player_level         = player_level,
+            detected_activities  = detected_activities,
+            torso_lean           = torso_lean,
+            knee_stability       = knee_stability,
+            gait_symmetry        = gait_symmetry,
+            warnings             = warnings,
+            by_action            = by_action or {},
+            coaching_issues      = coaching_issues or [],
+            positive_findings    = positive_findings or [],
+            session_id           = session_id,
+            video_duration_s     = video_duration_s,
         )
 
         prompt   = self._builder.build(ctx)
