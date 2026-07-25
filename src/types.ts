@@ -120,8 +120,8 @@ export interface AnalysisResult {
   detectedActions?: FootballAction[];
 }
 
-/* ── Skill Level ─────────────────────────────────────── */
-export type SkillLevel = "Beginner" | "Intermediate" | "Advanced";
+/** Skill level — 5 levels */
+export type SkillLevel = "Beginner" | "Developing" | "Intermediate" | "Advanced" | "Elite";
 
 /* ── Per-action metric snapshot ──────────────────────── */
 /**
