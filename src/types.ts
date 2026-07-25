@@ -105,19 +105,33 @@ export interface AnalysisResult {
   status: "completed" | "processing" | "failed";
   videoUrl?: string;
   warnings: string[];
+
+  // Pipeline outputs — everything optional so partial responses work
+  playerLevel?:      SkillLevel;
+  detectedActions?:  FootballAction[];
+  focusThisWeek?:    string[];
+
   metrics?: {
-    torsoLean: number;
+    torsoLean:     number;
     kneeStability: number;
-    gaitSymmetry: number;
+    gaitSymmetry:  number;
+    byAction?:     Partial<Record<FootballAction, Record<string, string>>>;
   };
-  /** Expanded pillar metrics (returned by the new server endpoint) */
+
+  aiFeedback?: {
+    summary:         string;
+    strengths:       string[];
+    weaknesses:      string[];
+    coachingTips:    string[];
+    motivationalTip: string;
+  };
+
+  /** Expanded pillar metrics (legacy) */
   technical?: TechnicalMetrics;
   setPieces?: SetPieceMetrics;
-  gymPlyo?: GymPlyoMetrics;
-  stamina?: StaminaMetrics;
-  feedback?: FeedbackItem;
-  /** Detected football actions from activity_detector — drives dashboard cards */
-  detectedActions?: FootballAction[];
+  gymPlyo?:   GymPlyoMetrics;
+  stamina?:   StaminaMetrics;
+  feedback?:  FeedbackItem;
 }
 
 /** Skill level — 5 levels */

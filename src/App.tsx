@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
-import type { NavTab, AnalysisResult, FootballAction } from "./types";
+import type { NavTab, AnalysisResult, FootballAction, SkillLevel } from "./types";
 import Sidebar from "./components/Sidebar";
 import DashboardTab from "./components/DashboardTab";
 import UploadTab from "./components/UploadTab";
@@ -25,29 +25,36 @@ export default function App() {
 
   /** Called by UploadTab when a video finishes analysis */
   const handleAnalysisComplete = useCallback(
-    (videoUrl: string, warnings: string[], fileName: string) => {
-      // Derive detected actions from warning flags — in production this
-      // would come from activity_detector.py via the backend response.
-      const detectedActions: FootballAction[] = [];
-      if (warnings.includes("POOR POSTURE / LEANING BACK")) detectedActions.push("shooting");
-      if (warnings.includes("KNEE ALIGNMENT RISK")) detectedActions.push("dribbling");
-      if (warnings.includes("ASYMMETRIC GAIT DETECTED")) detectedActions.push("movement");
-      // Always include at least one action so the dashboard is never empty.
-      if (detectedActions.length === 0) detectedActions.push("passing");
+    (videoUrl: string, warnings: string[], fileName: string, pipelineData?: Record<string, unknown>) => {
+      // Use pipeline data if available — no hardcoding.
+      const detectedActions = (
+        (pipelineData?.detectedActivities as string[]) ??
+        (() => {
+          const acts: FootballAction[] = [];
+          if (warnings.includes("POOR POSTURE / LEANING BACK")) acts.push("shooting");
+          if (warnings.includes("KNEE ALIGNMENT RISK"))          acts.push("dribbling");
+          if (warnings.includes("ASYMMETRIC GAIT DETECTED"))     acts.push("movement");
+          return acts.length ? acts : ["passing" as FootballAction];
+        })()
+      ) as FootballAction[];
 
       const result: AnalysisResult = {
-        id: String(nextId++),
+        id:             String(nextId++),
         fileName,
-        date: new Date(),
-        status: "completed",
+        date:           new Date(),
+        status:         "completed",
         videoUrl,
         warnings,
-        metrics: {
-          torsoLean: warnings.includes("POOR POSTURE / LEANING BACK") ? 22 : 12,
-          kneeStability: warnings.includes("KNEE ALIGNMENT RISK") ? 72 : 87,
-          gaitSymmetry: warnings.includes("ASYMMETRIC GAIT DETECTED") ? 78 : 92,
-        },
+        playerLevel:    (pipelineData?.playerLevel as SkillLevel) ?? undefined,
         detectedActions,
+        focusThisWeek:  (pipelineData?.focusThisWeek as string[]) ?? [],
+        metrics: {
+          torsoLean:     (pipelineData?.metrics as Record<string, number>)?.torsoLean     ?? (warnings.includes("POOR POSTURE / LEANING BACK") ? 22 : 12),
+          kneeStability: (pipelineData?.metrics as Record<string, number>)?.kneeStability ?? (warnings.includes("KNEE ALIGNMENT RISK") ? 72 : 87),
+          gaitSymmetry:  (pipelineData?.metrics as Record<string, number>)?.gaitSymmetry  ?? (warnings.includes("ASYMMETRIC GAIT DETECTED") ? 78 : 92),
+          byAction:      (pipelineData?.metrics as Record<string, unknown>)?.byAction as AnalysisResult["metrics"]["byAction"] ?? undefined,
+        },
+        aiFeedback: (pipelineData?.aiFeedback as AnalysisResult["aiFeedback"]) ?? undefined,
       };
       setAnalysisResults((prev) => [result, ...prev]);
       setActiveTab("analysis");
