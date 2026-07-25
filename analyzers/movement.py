@@ -2,41 +2,37 @@
 """
 Movement Analyzer
 =================
-Bridges the pipeline output to MovementMetrics.
+Calculates movement metrics from pose landmarks.
 
-Converts per-frame pose landmarks into MovementFrame objects and
-delegates computation to metrics/movement_metrics.py.
+Output metrics:
+  - Balance            (0–100)
+  - Speed              (km/h estimate)
+  - Foot Placement     (0–100)
+  - Gait Symmetry      (%)
+  - Stride Consistency (0–100)
 
-Never crashes — returns a valid ActionMetrics if data is insufficient.
+All merged into PipelineContext.analysis.metrics["byAction"]["movement"].
 """
 
 from __future__ import annotations
 
+import math
 from typing import List
 
-from analyzers.base_analyzer import BaseAnalyzer
-from schemas.activity_schema import ActionMetrics, ActivityMetric, FootballAction
-from pipeline.frame_extractor import ExtractedFrame
-from pipeline.pose_estimator import PoseEstimationResult, FramePose
-from pipeline.ball_detector import BallDetectionResult
-from metrics.movement_metrics import MovementMetrics, MovementFrame
-from metrics.common_metrics import Point2D
-from config.thresholds import MIN_FRAMES_FOR_GAIT
-from utils.logger import get_logger
+from analyzers.base_analyzer   import BaseAnalyzer
+from schemas.activity_schema   import ActionMetrics, ActivityMetric, FootballAction
+from pipeline.frame_extractor  import ExtractedFrame
+from pipeline.pose_estimator   import PoseEstimationResult
+from pipeline.ball_detector    import BallDetectionResult
+from utils.logger              import get_logger
 
 log = get_logger(__name__)
 
-_DEFAULT_FPS      = 25.0
-_DEFAULT_PX_PER_M = 100.0
+_FPS     = 25.0
+_PX_PER_M = 100.0
 
 
 class MovementAnalyzer(BaseAnalyzer):
-    """
-    Analyzer for player movement patterns (gait, sprint, distance).
-
-    Converts PoseEstimationResult frame-by-frame landmark data into
-    MovementFrame objects and passes them to MovementMetrics.
-    """
 
     @property
     def name(self) -> str:
@@ -49,107 +45,105 @@ class MovementAnalyzer(BaseAnalyzer):
         ball_result: BallDetectionResult,
     ) -> ActionMetrics:
         try:
-            movement_frames = self._extract_events(frames, pose_result, ball_result)
-            fps      = _DEFAULT_FPS
-            px_per_m = _DEFAULT_PX_PER_M
-            metric_set = MovementMetrics(fps=fps, px_per_m=px_per_m).calculate(movement_frames)
-            return self._to_action_metrics(metric_set)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("MovementAnalyzer: error during analysis — %s", exc)
-            return self._empty_metrics()
+            return self._run(pose_result)
+        except Exception as exc:
+            log.warning("MovementAnalyzer error: %s", exc)
+            return self._empty()
 
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
+    def _run(self, pose_result: PoseEstimationResult) -> ActionMetrics:
+        detected = [fp for fp in pose_result.frame_poses if fp.detected]
+        if not detected:
+            return self._empty()
 
-    def _extract_events(
-        self,
-        frames:      List[ExtractedFrame],
-        pose_result: PoseEstimationResult,
-        ball_result: BallDetectionResult,
-    ) -> List[MovementFrame]:
-        """
-        Convert pose landmarks to MovementFrame objects.
-
-        Uses the hip midpoint as the player's position, and left/right
-        ankle landmarks for gait and stride analysis.
-        """
-        movement_frames: List[MovementFrame] = []
-
-        for fp in pose_result.frame_poses:
-            if not fp.detected or not fp.landmarks:
-                continue
-
-            lh = fp.landmarks.get("left_hip")
-            rh = fp.landmarks.get("right_hip")
-            la = fp.landmarks.get("left_ankle")
-            ra = fp.landmarks.get("right_ankle")
-
-            # Hip midpoint as player position.
+        # ── Balance: penalise lateral centre-of-gravity shift ────────────────
+        hip_x_vals = []
+        for fp in detected:
+            lh = fp.get("left_hip")
+            rh = fp.get("right_hip")
             if lh and rh:
-                pos = Point2D((lh.x + rh.x) / 2, (lh.y + rh.y) / 2)
-            elif lh:
-                pos = Point2D(lh.x, lh.y)
-            elif rh:
-                pos = Point2D(rh.x, rh.y)
-            else:
-                continue   # no useful position data; skip this frame
+                hip_x_vals.append((lh.x + rh.x) / 2)
 
-            left_ankle  = Point2D(la.x, la.y) if la else Point2D(pos.x - 0.02, pos.y + 0.3)
-            right_ankle = Point2D(ra.x, ra.y) if ra else Point2D(pos.x + 0.02, pos.y + 0.3)
+        if len(hip_x_vals) >= 2:
+            import statistics
+            hip_std  = statistics.stdev(hip_x_vals)
+            balance  = round(max(0.0, 100.0 - hip_std * 300), 1)
+        else:
+            balance = 75.0
 
-            movement_frames.append(MovementFrame(
-                position    = pos,
-                left_ankle  = left_ankle,
-                right_ankle = right_ankle,
-                timestamp_s = fp.timestamp_s,
-            ))
+        # ── Speed: hip midpoint displacement per frame → km/h ────────────────
+        speeds = []
+        for i in range(1, len(detected)):
+            fp0 = detected[i - 1]
+            fp1 = detected[i]
+            lh0, rh0 = fp0.get("left_hip"), fp0.get("right_hip")
+            lh1, rh1 = fp1.get("left_hip"), fp1.get("right_hip")
+            if None in (lh0, rh0, lh1, rh1):
+                continue
+            cx0 = (lh0.x + rh0.x) / 2
+            cy0 = (lh0.y + rh0.y) / 2
+            cx1 = (lh1.x + rh1.x) / 2
+            cy1 = (lh1.y + rh1.y) / 2
+            dist_norm = math.hypot(cx1 - cx0, cy1 - cy0)
+            speeds.append(dist_norm)
 
-        if len(movement_frames) < MIN_FRAMES_FOR_GAIT:
-            return self._synthetic_frames(pose_result)
+        avg_speed_norm = sum(speeds) / len(speeds) if speeds else 0.0
+        speed_kmh      = round(avg_speed_norm * _FPS / _PX_PER_M * 3.6 * 1000, 1)
 
-        return movement_frames
+        # ── Foot placement: how close ankles stay to hip line ────────────────
+        foot_scores = []
+        for fp in detected:
+            lh = fp.get("left_hip")
+            rh = fp.get("right_hip")
+            la = fp.get("left_ankle")
+            ra = fp.get("right_ankle")
+            if None in (lh, rh, la, ra):
+                continue
+            hip_cx = (lh.x + rh.x) / 2
+            # Good foot placement: ankles close to hip centre line.
+            l_dev = abs(la.x - hip_cx)
+            r_dev = abs(ra.x - hip_cx)
+            score = max(0.0, 100.0 - (l_dev + r_dev) * 200)
+            foot_scores.append(score)
 
-    @staticmethod
-    def _synthetic_frames(pose_result: PoseEstimationResult) -> List[MovementFrame]:
-        """
-        Generate synthetic movement frames when real data is insufficient.
-        Uses aggregate gait data from the pose result if available.
-        """
-        gait_asym = pose_result.gait_asymmetry or 0.05
-        n_frames  = max(MIN_FRAMES_FOR_GAIT, len(pose_result.frame_poses))
+        foot_placement = round(
+            sum(foot_scores) / len(foot_scores) if foot_scores else 70.0, 1
+        )
 
-        frames: List[MovementFrame] = []
-        import math
-        for i in range(n_frames):
-            t = i / _DEFAULT_FPS
-            x = 0.1 + (i / n_frames) * 0.8                    # player moving across pitch
-            y = 0.5 + math.sin(i * 0.3) * 0.02                # slight y variation
+        # ── Gait symmetry: left vs right ankle Y variance ────────────────────
+        left_y  = [fp.get("left_ankle").y  for fp in detected if fp.get("left_ankle")]
+        right_y = [fp.get("right_ankle").y for fp in detected if fp.get("right_ankle")]
 
-            ankle_offset = 0.03 + gait_asym * 0.1
-            frames.append(MovementFrame(
-                position    = Point2D(x, y),
-                left_ankle  = Point2D(x - 0.02, y + 0.3 + math.sin(i * 0.6) * ankle_offset),
-                right_ankle = Point2D(x + 0.02, y + 0.3 + math.sin(i * 0.6 + math.pi) * ankle_offset),
-                timestamp_s = t,
-            ))
-        return frames
+        if left_y and right_y:
+            avg_l = sum(left_y)  / len(left_y)
+            avg_r = sum(right_y) / len(right_y)
+            denom = max(avg_l, avg_r)
+            asym  = abs(avg_l - avg_r) / denom if denom > 0 else 0.0
+            gait_symmetry = round((1.0 - asym) * 100, 1)
+        else:
+            gait_symmetry = 80.0
 
-    @staticmethod
-    def _to_action_metrics(metric_set) -> ActionMetrics:
+        # ── Stride consistency ────────────────────────────────────────────────
+        stride_consistency = round(
+            max(0.0, 100.0 - (abs(100 - gait_symmetry) * 1.5)), 1
+        )
+
         return ActionMetrics(
             action  = FootballAction.MOVEMENT,
             metrics = [
-                ActivityMetric(
-                    label   = m.label,
-                    value   = m.value,
-                    display = m.display,
-                    unit    = m.unit,
-                )
-                for m in metric_set.metrics
+                ActivityMetric("Balance",            balance,           f"{balance}/100",       ""),
+                ActivityMetric("Speed",              speed_kmh,         f"{speed_kmh} km/h",    "km/h"),
+                ActivityMetric("Foot Placement",     foot_placement,    f"{foot_placement}/100",""),
+                ActivityMetric("Gait Symmetry",      gait_symmetry,     f"{gait_symmetry}%",    "%"),
+                ActivityMetric("Stride Consistency", stride_consistency,f"{stride_consistency}/100",""),
             ],
         )
 
     @staticmethod
-    def _empty_metrics() -> ActionMetrics:
-        return ActionMetrics(action=FootballAction.MOVEMENT, metrics=[])
+    def _empty() -> ActionMetrics:
+        return ActionMetrics(action=FootballAction.MOVEMENT, metrics=[
+            ActivityMetric("Balance",            0.0, "—"),
+            ActivityMetric("Speed",              0.0, "—"),
+            ActivityMetric("Foot Placement",     0.0, "—"),
+            ActivityMetric("Gait Symmetry",      0.0, "—"),
+            ActivityMetric("Stride Consistency", 0.0, "—"),
+        ])

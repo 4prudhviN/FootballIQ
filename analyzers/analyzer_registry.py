@@ -159,6 +159,33 @@ class AnalyzerRegistry:
         """Return the list of action strings that have a registered analyzer."""
         return list(self._analyzers.keys())
 
+    def merge_to_context(
+        self,
+        action_metrics: Dict[str, "ActionMetrics"],
+        ctx: "PipelineContext",
+    ) -> None:
+        """
+        Merge all analyzer results into PipelineContext.analysis.metrics.
+
+        Parameters
+        ----------
+        action_metrics : dict returned by run_for_activities()
+        ctx            : PipelineContext to write into
+        """
+        by_action: Dict[str, Dict[str, str]] = {}
+        for action, am in action_metrics.items():
+            by_action[action] = am.to_display_dict()
+
+        # Merge into existing metrics dict (preserve biomechanical scalars).
+        if not ctx.analysis.metrics:
+            ctx.analysis.metrics = {}
+        ctx.analysis.metrics["byAction"] = by_action
+
+        log.debug(
+            "AnalyzerRegistry.merge_to_context: merged %d activities into PipelineContext",
+            len(by_action),
+        )
+
     def __repr__(self) -> str:
         return f"AnalyzerRegistry(registered={self.registered_actions()})"
 
