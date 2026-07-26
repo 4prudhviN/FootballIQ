@@ -45,13 +45,16 @@ log = get_logger(__name__)
 # Expected schemas (field → default value)
 # ---------------------------------------------------------------------------
 
-# The shape the frontend expects for aiFeedback.
+# The shape the frontend expects for aiFeedback — all 7 sections.
 FEEDBACK_SCHEMA: Dict[str, Any] = {
-    "summary":         "",
-    "strengths":       [],
-    "weaknesses":      [],
-    "coachingTips":    [],
-    "motivationalTip": "",
+    "session_summary":          "",
+    "activity_analysis":        "",
+    "strengths":                [],
+    "areas_to_improve":         [],
+    "coach_explanation":        "",
+    "training_recommendations": [],
+    "next_focus":               "",
+    "motivationalTip":          "",
 }
 
 # The shape the frontend expects for a drill.
@@ -284,7 +287,50 @@ class JSONValidator:
         return repaired, warnings
 
     # ------------------------------------------------------------------
-    # Private — extraction helpers
+    # Validation with completeness check
+    # ------------------------------------------------------------------
+
+    def validate_complete_report(
+        self,
+        text: str,
+    ) -> "ValidationResult":
+        """
+        Validate a full 7-section LLM report.
+        Returns validation result with `missing_sections` in warnings
+        so the caller knows whether to regenerate.
+
+        Required sections:
+          session_summary, strengths, areas_to_improve,
+          training_recommendations, next_focus
+
+        Optional (no regenerate):
+          activity_analysis, coach_explanation, motivationalTip
+        """
+        result = self.validate_feedback_response(text)
+        data   = result.best or {}
+
+        required = [
+            "session_summary",
+            "strengths",
+            "areas_to_improve",
+            "training_recommendations",
+            "next_focus",
+        ]
+
+        missing: List[str] = []
+        for field in required:
+            val = data.get(field)
+            if val is None or val == "" or val == [] :
+                missing.append(field)
+
+        if missing:
+            result.warnings.append(f"Missing required sections: {missing}")
+            result.valid = False   # trigger regeneration
+
+        return result
+
+    # ------------------------------------------------------------------
+    # JSON extraction helpers
     # ------------------------------------------------------------------
 
     @staticmethod
