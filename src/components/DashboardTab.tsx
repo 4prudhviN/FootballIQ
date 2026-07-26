@@ -330,6 +330,13 @@ export default function DashboardTab({ analysisResults, onUploadClick }: Dashboa
                     </p>
                   )}
 
+                  {/* Activity analysis */}
+                  {selected.aiFeedback?.activityAnalysis && (
+                    <p className="mt-2 text-sm text-muted/80 leading-relaxed italic">
+                      {selected.aiFeedback.activityAnalysis}
+                    </p>
+                  )}
+
                   {/* Detected activities — rendered dynamically */}
                   {selected.detectedActions && selected.detectedActions.length > 0 && (
                     <div className="mt-4">
@@ -365,6 +372,17 @@ export default function DashboardTab({ analysisResults, onUploadClick }: Dashboa
                         />
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Coach explanation */}
+                {selected.aiFeedback?.coachExplanation && (
+                  <div className="rounded-2xl border border-border bg-surface p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-base">🗣️</span>
+                      <h3 className="font-heading text-sm font-semibold text-foreground">Coach Explanation</h3>
+                    </div>
+                    <p className="text-sm text-muted leading-relaxed">{selected.aiFeedback.coachExplanation}</p>
                   </div>
                 )}
 

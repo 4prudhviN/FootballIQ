@@ -119,11 +119,14 @@ export interface AnalysisResult {
   };
 
   aiFeedback?: {
-    summary:         string;
-    strengths:       string[];
-    weaknesses:      string[];
-    coachingTips:    string[];
-    motivationalTip: string;
+    summary:                  string;
+    activityAnalysis?:        string;
+    strengths:                string[];
+    weaknesses:               string[];
+    coachExplanation?:        string;
+    coachingTips:             string[];
+    nextFocus?:               string;
+    motivationalTip:          string;
   };
 
   /** Expanded pillar metrics (legacy) */

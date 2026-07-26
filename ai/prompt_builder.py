@@ -81,11 +81,14 @@ STRICT RULES:
 _OUTPUT_FORMAT = """\
 Respond with valid JSON only:
 {
-  "summary":         "2-3 sentences. Reference actual numbers. What happened this session.",
-  "strengths":       ["one sentence per strength, referencing a specific metric or observation"],
-  "weaknesses":      ["one sentence per issue, naming the root cause and its effect on play"],
-  "coachingTips":    ["one actionable instruction per issue, written directly to the player"],
-  "motivationalTip": "one closing sentence, level-appropriate, encouraging"
+  "session_summary":          "2-3 sentences. Reference actual numbers. What happened this session.",
+  "activity_analysis":        "1-2 sentences per activity. What the data showed specifically.",
+  "strengths":                ["one sentence per strength, referencing a specific metric"],
+  "areas_to_improve":         ["one sentence per issue, naming the root cause and effect on play"],
+  "coach_explanation":        "2-3 sentences. Plain English explanation of the main issue and why it matters.",
+  "training_recommendations": ["one drill per issue — name + one sentence instruction"],
+  "next_focus":               "one sentence. The single most important thing to work on next session.",
+  "motivationalTip":          "one closing sentence, level-appropriate, encouraging"
 }\
 """
 
