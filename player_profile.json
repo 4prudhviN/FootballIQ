@@ -1,0 +1,15 @@
+{
+  "dominantFoot":  "Right",
+  "position":      "Midfielder",
+  "ageGroup":      "U16",
+  "experience":    "Beginner",
+  "preferredActivities": ["passing", "dribbling"],
+  "goals": [
+    "Improve passing accuracy",
+    "Develop weaker foot",
+    "Better body position at contact"
+  ],
+  "injuryHistory": [],
+  "sessionsCompleted": 0,
+  "notes": ""
+}
