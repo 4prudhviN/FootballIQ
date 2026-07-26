@@ -390,3 +390,5 @@ class PlayerDetector:
             f"passed={result.passed}  "
             f"max_players={result.max_players_per_frame}",
         )
+
+
