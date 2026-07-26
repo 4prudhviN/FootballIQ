@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """
-FootballIQ Analysis Backend — FastAPI Server  (v3)
-===================================================
+FootballIQ Analysis Backend
+============================
+Single entry point. Everything goes through PipelineManager.
 
-Delegates all analysis to PipelineManager which runs the full 9-stage pipeline:
-
-  Video → Player Detection → Ball Detection → Pose Estimation
-  → Activity Detection → Analyzer Selection → Metric Calculation
-  → Skill Classification → Feedback Engine → Dashboard
+server.py
+  ↓
+PipelineManager.run_with_context(video_path)
+  ↓
+Everything (Video → Detection → Pose → Activity → Metrics → Coaching → LLM → Report)
 
 Endpoints
 ---------
-  POST /api/upload-video          Upload video → run pipeline → FootballSession JSON
+  POST /api/upload-video          Upload video → PipelineManager → response
   GET  /api/video/{job_id}/{file} Stream processed video
   GET  /api/pipeline-status/{id}  Poll current pipeline stage
-  GET  /api/sessions              List saved session IDs
-  GET  /api/sessions/{id}         Load a saved session JSON
+  GET  /api/sessions              List all saved sessions
+  GET  /api/sessions/{id}         Load a session
+  GET  /api/progress              Progress across all sessions
   GET  /                          Health check
 
 Startup
@@ -27,21 +29,21 @@ from __future__ import annotations
 
 import uuid
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from config.settings       import settings
+from config.settings          import settings
 from pipeline.pipeline_manager import PipelineManager
-from reports.report_writer import ReportWriter
-from session.session_manager import SessionManager
-from utils.file_utils      import ensure_dir, save_bytes
-from utils.logger          import get_logger
+from reports.report_writer    import ReportWriter
+from session.session_manager  import SessionManager
+from utils.file_utils         import ensure_dir, save_bytes
+from utils.logger             import get_logger
 
 log = get_logger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Startup
@@ -50,9 +52,10 @@ log = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ensure_dir(settings.work_dir_path)
-    log.info("Work directory: %s", settings.work_dir_path)
-    log.info("LLM provider:   %s / %s", settings.LLM_PROVIDER, settings.active_llm_model)
+    log.info("Work directory : %s", settings.work_dir_path)
+    log.info("LLM provider   : %s / %s", settings.LLM_PROVIDER, settings.active_llm_model)
     yield
+
 
 # ---------------------------------------------------------------------------
 # App
@@ -60,7 +63,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title    = "FootballIQ Analysis API",
-    version  = "3.0.0",
+    version  = "4.0.0",
     lifespan = lifespan,
 )
 
@@ -72,16 +75,20 @@ app.add_middleware(
     allow_headers     = ["*"],
 )
 
-# Singletons
+# ---------------------------------------------------------------------------
+# Singletons — created once at startup
+# ---------------------------------------------------------------------------
+
 _pipeline = PipelineManager(
     frame_stride          = settings.FRAME_STRIDE,
     player_threshold      = 0.10,
     pose_model_complexity = settings.POSE_MODEL_COMPLEXITY,
+    use_ai                = True,
 )
 _writer  = ReportWriter()
 _session = SessionManager(writer=_writer)
 
-# In-memory job status store (replace with Redis in production)
+# In-memory job status store.
 _jobs: dict[str, dict[str, Any]] = {}
 
 
@@ -91,67 +98,52 @@ _jobs: dict[str, dict[str, Any]] = {}
 
 @app.post("/api/upload-video")
 async def upload_video(
-    file: UploadFile = File(..., description="MP4 video of a football movement drill."),
+    file: UploadFile = File(..., description="MP4 video of a football drill."),
 ):
-    """Run the full 9-stage pipeline and return a FootballSession-compatible payload."""
+    """
+    Single pipeline entry point.
 
+    Every upload goes through PipelineManager.run_with_context()
+    which orchestrates all stages and returns a PipelineContext.
+    """
     if not file.filename or not file.filename.lower().endswith(".mp4"):
         raise HTTPException(status_code=400, detail="Only .mp4 files are accepted.")
 
-    # Save upload to a unique job directory.
-    job_id  = uuid.uuid4().hex[:12]
-    job_dir = ensure_dir(settings.work_dir_path / job_id)
-
-    input_path  = str(job_dir / "input.mp4")
-    output_path = str(job_dir / "analyzed.mp4")
+    # Save upload.
+    job_id    = uuid.uuid4().hex[:12]
+    job_dir   = ensure_dir(settings.work_dir_path / job_id)
+    input_path = str(job_dir / "input.mp4")
 
     content = await file.read()
     save_bytes(content, input_path)
     log.info("Job %s — saved %.1f MB: %s", job_id, len(content) / 1e6, file.filename)
 
-    _jobs[job_id] = {"stage": "player_detection", "status": "running"}
+    _jobs[job_id] = {"stage": "starting", "status": "running"}
 
-    # Run pipeline synchronously (move to background task for production).
-    output = _pipeline.run(input_path)
+    # ── Single pipeline call ──────────────────────────────────────────────
+    ctx = _pipeline.run_with_context(input_path, session_id=job_id)
 
-    if not output.success:
+    if not ctx.is_complete():
         _jobs[job_id]["status"] = "failed"
-        raise HTTPException(status_code=422, detail=output.error or "Pipeline failed.")
+        raise HTTPException(status_code=422, detail=ctx.error or "Pipeline failed.")
 
     _jobs[job_id]["stage"]  = "complete"
     _jobs[job_id]["status"] = "complete"
 
-    # Build response payload.
-    payload: dict[str, Any] = {
-        "status":    "complete",
-        "job_id":    job_id,
-        "video_url": f"/api/video/{job_id}/analyzed.mp4",
+    # Persist session.
+    _session.create(
+        _make_pipeline_output(ctx),
+        file_name=file.filename or "upload.mp4",
+    )
 
-        # FootballSession fields
-        "detectedActivities": output.detected_activities,
-        "playerLevel":        output.player_level,
-        "metrics":            output.metrics,
-        "aiFeedback":         output.ai_feedback,
-        "drills":             output.drills,
+    payload = ctx.to_api_response()
+    payload["job_id"]    = job_id
+    payload["video_url"] = f"/api/video/{job_id}/analyzed.mp4"
 
-        # New structured fields from full pipeline
-        "timeline":          output.timeline,
-        "skillProfile":      output.skill_profile,
-        "focusThisWeek":     output.focus_areas,
-        "trainingPlan":      output.training_plan,
-        "weeklyPlan":        output.weekly_plan,
-        "recoveryAdvice":    output.recovery_advice,
-        "coachingFeedback":  output.coaching_feedback,
-
-        "_pipeline": output.diagnostics,
-    }
-
-    # Persist JSON report and create session.
-    session = _session.create(output, file_name=file.filename or "upload.mp4")
-    payload["session_id"] = session.id
-    log.info("Job %s complete — level=%s activities=%s",
-             job_id, output.player_level, output.detected_activities)
-
+    log.info(
+        "Job %s complete — level=%s activities=%s",
+        job_id, ctx.player_level, ctx.detected_activities,
+    )
     return payload
 
 
@@ -161,6 +153,7 @@ async def upload_video(
 
 @app.get("/api/video/{job_id}/{filename}")
 async def stream_video(job_id: str, filename: str):
+    """Stream a processed video."""
     allowed = {"analyzed.mp4", "input.mp4"}
     if filename not in allowed:
         raise HTTPException(status_code=404, detail="File not found.")
@@ -178,6 +171,7 @@ async def stream_video(job_id: str, filename: str):
 
 @app.get("/api/pipeline-status/{job_id}")
 async def pipeline_status(job_id: str):
+    """Poll current pipeline stage for a job."""
     job = _jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
@@ -190,7 +184,7 @@ async def pipeline_status(job_id: str):
 
 @app.get("/api/sessions")
 async def list_sessions():
-    """List all saved session IDs (newest first)."""
+    """List all saved session IDs, newest first."""
     return {"sessions": _writer.list_sessions()}
 
 
@@ -213,24 +207,17 @@ async def get_session(session_id: str):
 
 @app.get("/api/progress")
 async def get_progress():
-    """
-    Return progress comparison across all saved sessions.
-    Example: passing accuracy improved from 58% → 67% → 74%.
-    """
+    """Progress comparison across all saved sessions."""
     from session.session_history import SessionHistory
     history  = SessionHistory(manager=_session)
     sessions = history.all_sessions()
 
     if len(sessions) < 2:
-        return {
-            "message":  "Upload at least 2 sessions to see progress.",
-            "sessions": len(sessions),
-        }
+        return {"message": "Upload at least 2 sessions to see progress.", "sessions": len(sessions)}
 
-    timeline = history.progress_timeline(sessions)
-    comparison = history.compare(sessions[-1], sessions[0])   # oldest → newest
+    timeline   = history.progress_timeline(sessions)
+    comparison = history.compare(sessions[-1], sessions[0])
 
-    # Build per-metric progress lines.
     metric_history: dict[str, list[dict]] = {}
     for point in timeline:
         for metric, val in [
@@ -247,21 +234,19 @@ async def get_progress():
                 "level":      point.player_level,
             })
 
-    # Natural language progress summary.
-    trend   = comparison.get("overall_trend", "stable")
-    summary_map = {
+    trend = comparison.get("overall_trend", "stable")
+    summary = {
         "improving":  f"Your performance has improved across your last {len(sessions)} sessions.",
-        "stable":     f"Your performance has been consistent across your last {len(sessions)} sessions.",
-        "regressing": "Some metrics dipped in your last session. Check the training plan.",
-    }
-    summary = summary_map.get(trend, "Keep training consistently.")
+        "stable":     f"Your performance has been consistent across {len(sessions)} sessions.",
+        "regressing": "Some metrics dipped. Review your training plan.",
+    }.get(trend, "Keep training consistently.")
 
     return {
-        "session_count":    len(sessions),
-        "overall_trend":    trend,
-        "summary":          summary,
-        "comparison":       comparison,
-        "metric_history":   metric_history,
+        "session_count":         len(sessions),
+        "overall_trend":         trend,
+        "summary":               summary,
+        "comparison":            comparison,
+        "metric_history":        metric_history,
         "persistent_weaknesses": history.persistent_weaknesses(sessions),
     }
 
@@ -274,8 +259,9 @@ async def get_progress():
 async def root():
     return {
         "service":  "FootballIQ Analysis API",
-        "version":  "3.0.0",
+        "version":  "4.0.0",
         "status":   "running",
+        "entry_point": "POST /api/upload-video → PipelineManager → Everything",
         "config":   settings.summary(),
         "endpoints": {
             "POST": "/api/upload-video",
@@ -286,3 +272,33 @@ async def root():
             "GET":  "/api/progress",
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Helper — adapt PipelineContext to SessionManager interface
+# ---------------------------------------------------------------------------
+
+def _make_pipeline_output(ctx: Any) -> Any:
+    """Wrap PipelineContext fields into an object SessionManager.create() accepts."""
+    class _Adapter:
+        def __init__(self, ctx):
+            self.success             = ctx.is_complete()
+            self.error               = ctx.error
+            self.detected_activities = ctx.detected_activities
+            self.player_level        = ctx.player_level
+            self.metrics             = ctx.analysis.metrics if ctx.analysis else {}
+            self.ai_feedback         = ctx.report.report   if ctx.report   else {}
+            self.drills              = ctx.coaching.drills if ctx.coaching  else []
+            self.timeline            = [
+                {
+                    "label":      seg.label,
+                    "action":     seg.action,
+                    "startTime":  seg.start_time_s,
+                    "endTime":    seg.end_time_s,
+                    "duration":   seg.duration_s,
+                    "confidence": seg.confidence,
+                }
+                for seg in (ctx.activity.timeline if ctx.activity else [])
+            ]
+            self.diagnostics = {}
+    return _Adapter(ctx)
