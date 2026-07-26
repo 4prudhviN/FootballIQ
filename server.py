@@ -208,6 +208,65 @@ async def get_session(session_id: str):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/progress
+# ---------------------------------------------------------------------------
+
+@app.get("/api/progress")
+async def get_progress():
+    """
+    Return progress comparison across all saved sessions.
+    Example: passing accuracy improved from 58% → 67% → 74%.
+    """
+    from session.session_history import SessionHistory
+    history  = SessionHistory(manager=_session)
+    sessions = history.all_sessions()
+
+    if len(sessions) < 2:
+        return {
+            "message":  "Upload at least 2 sessions to see progress.",
+            "sessions": len(sessions),
+        }
+
+    timeline = history.progress_timeline(sessions)
+    comparison = history.compare(sessions[-1], sessions[0])   # oldest → newest
+
+    # Build per-metric progress lines.
+    metric_history: dict[str, list[dict]] = {}
+    for point in timeline:
+        for metric, val in [
+            ("torso_lean",     point.torso_lean),
+            ("knee_stability", point.knee_stability),
+            ("gait_symmetry",  point.gait_symmetry),
+        ]:
+            if metric not in metric_history:
+                metric_history[metric] = []
+            metric_history[metric].append({
+                "session_id": point.session_id,
+                "date":       point.date[:10],
+                "value":      round(val, 1),
+                "level":      point.player_level,
+            })
+
+    # Natural language progress summary.
+    trend   = comparison.get("overall_trend", "stable")
+    summary_map = {
+        "improving":  f"Your performance has improved across your last {len(sessions)} sessions.",
+        "stable":     f"Your performance has been consistent across your last {len(sessions)} sessions.",
+        "regressing": "Some metrics dipped in your last session. Check the training plan.",
+    }
+    summary = summary_map.get(trend, "Keep training consistently.")
+
+    return {
+        "session_count":    len(sessions),
+        "overall_trend":    trend,
+        "summary":          summary,
+        "comparison":       comparison,
+        "metric_history":   metric_history,
+        "persistent_weaknesses": history.persistent_weaknesses(sessions),
+    }
+
+
+# ---------------------------------------------------------------------------
 # GET /  — health check
 # ---------------------------------------------------------------------------
 
@@ -224,5 +283,6 @@ async def root():
             "GET":  "/api/pipeline-status/{job_id}",
             "GET":  "/api/sessions",
             "GET":  "/api/sessions/{session_id}",
+            "GET":  "/api/progress",
         },
     }
